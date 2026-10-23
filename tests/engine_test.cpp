@@ -35,6 +35,13 @@ void audioTests(){
  auto a=an.run(samples,c);assert(a.ok&&!a.clip);assert(a.db>-18&&a.db<-16);assert(a.spectrum[1]>.9);assert(a.roarRatio>.82&&a.roarRatio<.85);
  for(int i=0;i<N;i++)samples[i]=0;auto silent=an.run(samples,c);assert(std::isfinite(silent.db)&&silent.db<-100);for(float v:silent.spectrum)assert(std::isfinite(v));
  for(int i=0;i<N;i++)samples[i]=(i%2)?INT32_MAX:INT32_MIN;assert(an.run(samples,c).clip);
+ // Extreme sensitivity is applied after raw clipping detection.
+ c.micSensitivity=5;auto attenuated=an.run(samples,c);assert(attenuated.clip&&attenuated.peakDb>-1);
+ // Speech focus suppresses bass-dominated audio while preserving midrange activity.
+ c={};c.voiceFocus=1;Analyzer focused;for(int i=0;i<N;i++)samples[i]=int32_t(.2*std::sin(2*kPi*125*i/FS)*2147483647.);
+ auto bassOnly=focused.run(samples,c);assert(bassOnly.voiceScore<.1f&&bassOnly.level<.01f);
+ for(int i=0;i<N;i++)samples[i]=int32_t(.2*std::sin(2*kPi*1000*i/FS)*2147483647.);
+ auto midTone=focused.run(samples,c);assert(midTone.voiceScore>.9f&&midTone.level>.1f);
 }
 void matrixAndPowerTests(){
  std::set<int> ids;for(int r=0;r<5;r++)for(int x=0;x<13;x++)if(BandanaMatrix::indexAt(x,r)>=0)ids.insert(BandanaMatrix::indexAt(x,r));assert(ids.size()==31&&*ids.begin()==0&&*ids.rbegin()==30);
@@ -49,7 +56,7 @@ void matrixAndPowerTests(){
 }
 void modeControlTests(){
  Config c;c.primaryMask=(1u<<0)|(1u<<9)|(1u<<10);
- assert(validPrimaryMask(c.primaryMask));assert(!validPrimaryMask(0));assert(!validPrimaryMask(1u<<5));assert(!validPrimaryMask(1u<<12));
+ assert(validPrimaryMask(c.primaryMask));assert(!validPrimaryMask(0));assert(!validPrimaryMask(1u<<5));assert(validPrimaryMask(1u<<12));
  nextPrimary(c);assert(c.mode==9&&c.lastMode==9);
  nextPrimary(c);assert(c.mode==10);nextPrimary(c);assert(c.mode==0);
  chooseMode(c,10);toggleCollapse(c);assert(c.mode==5&&c.lastMode==10);

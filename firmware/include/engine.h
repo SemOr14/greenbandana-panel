@@ -17,6 +17,7 @@ inline Color blend(Color a,Color b,float t){return {uint8_t(mix(a.r,b.r,t)),uint
 inline Color scale(Color a,float f){f=bound(f);return {uint8_t(a.r*f),uint8_t(a.g*f),uint8_t(a.b*f)};}
 struct Config {
  int mode=0,lastMode=0,brightness=90,currentLimitMa=900;
+ int micSensitivity=1,voiceFocus=0;
  uint32_t primaryMask=((1u<<11)-1)&~(1u<<5);
  int customFps=4,customCount=4,customSound=0;
  uint32_t fireLow=0xff1800,fireHigh=0xffdc40,musicLow=0xff1800,musicMid=0x00ff50,musicHigh=0x2060ff;
@@ -43,6 +44,7 @@ inline void nextPrimary(Config& c){
 }
 struct Audio {
  float db=-100,peakDb=-100,level=0,bass=0,roarRatio=0;
+ float voiceScore=1;
  std::array<float,BANDS> spectrum{},display{};
  bool clip=false,ok=false;
 };
@@ -68,23 +70,36 @@ class Analyzer {
    }
   }
   const float edges[BANDS+1]={31.25,80,160,315,630,1250,2500,4000,8001};
-  double total=0,bass=0,roar=0;
+  double total=0,bass=0,roar=0,voice=0;
   for(int k=1;k<N/2;k++){float f=float(k)*FS/N,p=re[k]*re[k]+im[k]*im[k];total+=p;
    if(f>=c.bassLow&&f<=c.bassHigh)bass+=p;
    if(f>=c.roarLow&&f<=c.roarHigh)roar+=p;
+   if(f>=250&&f<=4000)voice+=p;
    for(int b=0;b<BANDS;b++)if(f>=edges[b]&&f<edges[b+1]){a.spectrum[b]+=p;break;}
   }
+  // A single mic cannot identify a speaker. This heuristic prioritizes speech-band
+  // energy and suppresses bass-heavy frames; vocals and instruments can still pass.
+  float voiceShare=float(voice/std::max(1e-12,total));
+  a.voiceScore=bound((voiceShare-.30f)/.45f);
+  float attenuation=20.f*std::log10(float(std::max(1,c.micSensitivity)));
+  float effectiveDb=a.db-attenuation;
+  if(c.voiceFocus)effectiveDb=10.f*std::log10(std::max(1e-12f,float(voice)*float(16./(3.*N*N))))-attenuation;
+  a.db=effectiveDb;
   for(int b=0;b<BANDS;b++){
    float db=10*std::log10(std::max(1e-12f,a.spectrum[b]*float(16./(3.*N*N))));
-   a.display[b]=bound((db-c.floorDb)/(c.ceilingDb-c.floorDb));
+   float bandWeight=c.voiceFocus?(b<2?0.f:b>6?.35f:1.f):1.f;
+   a.display[b]=bound((db-attenuation-c.floorDb)/(c.ceilingDb-c.floorDb))*bandWeight*(c.voiceFocus?a.voiceScore:1.f);
    a.spectrum[b]/=std::max(1e-12f,float(total));
+   a.spectrum[b]*=bandWeight;
   }
-  a.roarRatio=float(roar/std::max(1e-12,total));
-  float target=bound((a.db-c.floorDb)/(c.ceilingDb-c.floorDb));
+  float spectralSum=0;for(float& v:a.spectrum){v*=c.voiceFocus?a.voiceScore:1.f;spectralSum+=v;}
+  if(spectralSum>1e-8f)for(float& v:a.spectrum)v/=spectralSum;
+  a.roarRatio=float(roar/std::max(1e-12,total))*(c.voiceFocus?a.voiceScore:1.f);
+  float target=bound((effectiveDb-c.floorDb)/(c.ceilingDb-c.floorDb));
   float dt=1000.f*N/FS;
   smoothLevel+=(target-smoothLevel)*(1-std::exp(-dt/(target>smoothLevel?c.attackMs:c.releaseMs)));
-  float bassDb=10*std::log10(std::max(1e-12f,float(bass)*float(16./(3.*N*N))));
-  float bt=bound((bassDb-c.floorDb)/(c.ceilingDb-c.floorDb)*c.bassGain);
+  float bassDb=10*std::log10(std::max(1e-12f,float(bass)*float(16./(3.*N*N))))-attenuation;
+  float bt=bound((bassDb-c.floorDb)/(c.ceilingDb-c.floorDb)*c.bassGain)*(c.voiceFocus?a.voiceScore:1.f);
   smoothBass+=(bt-smoothBass)*(1-std::exp(-dt/(bt>smoothBass?c.attackMs:c.releaseMs)));
   a.level=smoothLevel;a.bass=smoothBass;return a;
  }

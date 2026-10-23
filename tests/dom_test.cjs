@@ -1,6 +1,6 @@
 const {JSDOM,VirtualConsole}=require('jsdom');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),vm=require('node:vm'),crypto=require('node:crypto');
-const root=path.resolve(__dirname,'../web'),errors=[];
+const root=path.resolve(__dirname,'..'),errors=[];
 const dom=new JSDOM(fs.readFileSync(path.join(root,'index.html'),'utf8'),{url:'https://bandana.test/',runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:new VirtualConsole().on('jsdomError',e=>errors.push(e.message))});
 const w=dom.window;w.TextEncoder=TextEncoder;w.TextDecoder=TextDecoder;w.isSecureContext=true;Object.defineProperty(w,'crypto',{value:crypto.webcrypto});
 const ctx=dom.getInternalVMContext(),run=s=>vm.runInContext(s,ctx),$=id=>w.document.getElementById(id),sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -14,6 +14,7 @@ class Characteristic extends w.EventTarget{
   else if(p.op==='enroll'){server.key=p.key;server.configured=true;}
   else if(p.op==='auth')r.ok=p.proof===crypto.createHmac('sha256',Buffer.from(server.key,'hex')).update(server.nonce).digest('hex');
   else if(p.op==='config')r={id:p.id,type:'config',config:server.settings};
+  else if(p.op==='customGet')r={id:p.id,type:'customFrame',slot:p.slot,frame:p.frame,pixels:'000000'.repeat(31)};
   else if(p.op==='set')server.settings[p.name]=p.value;
   else if(p.op==='save')server.saved=true;
   const b=new TextEncoder().encode(JSON.stringify(r)+'\n');
@@ -47,14 +48,16 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
  assert.equal(await run(`proof('${expected}','abc123')`),crypto.createHmac('sha256',Buffer.from(expected,'hex')).update('abc123').digest('hex'));
  await run('connect()');assert(!$('login').hidden);
  $('password').value=pass;$('authForm').requestSubmit($('authForm').querySelector('button'));
- await until(()=>run('ready'));assert.equal(server.key,expected);assert(server.configured);assert(!$('controls').disabled);
+ await until(()=>run('ready'));await until(()=>run('customLoaded'));assert.equal(server.key,expected);assert(server.configured);assert(!$('controls').disabled);
  await run("setting('mode',5)");assert.equal(server.settings.mode,5);await run("setting('primaryMask',1<<10)");assert.equal(server.settings.primaryMask,1<<10);
+ $('setting-voiceFocus').value='1';$('setting-voiceFocus').dispatchEvent(new w.Event('change'));await until(()=>server.settings.voiceFocus===1);
+ $('setting-micSensitivity').value='5';$('setting-micSensitivity').dispatchEvent(new w.Event('change'));await until(()=>server.settings.micSensitivity===5);
  $('save').click();await until(()=>server.saved);
  // Read/write fragmentation and reconnect with remembered access, no second password entry.
  assert(fragments>10);device.gatt.disconnect();assert($('controls').disabled);
- await run('connect()');assert(run('ready'));assert($('login').hidden);
+ await run('connect()');assert(run('ready'));assert($('login').hidden);await until(()=>run('customLoaded'));
  run(`incoming({target:{value:new DataView(new TextEncoder().encode(JSON.stringify({type:'state',mode:10,lastMode:10,primaryMask:1024,pct:42,v:3.71,batteryValid:true,level:.5,bass:.2,db:-25,clip:true,mic:true,roar:2,pixels:'00ff00'.repeat(31)})+'\\n').buffer)}})`);
  assert.equal($('battery').textContent,'42% · 3.71 В');assert.equal($('mic').textContent,'Перегруз микрофона');
  assert.equal($('led-15').getAttribute('fill'),'#00ff00');assert.equal($('modeName').textContent,'Сейчас: Светомузыка');assert.equal(w.document.querySelectorAll('#primaryModes input:checked').length,1);
- assert.deepEqual(errors,[]);dom.window.close();console.log('PASS: UI initialization, eleven modes, PBKDF2/HMAC vectors, first enrollment, fragmented BLE exchange, settings/save, remembered reconnect, battery and clipping telemetry');
+ assert.deepEqual(errors,[]);dom.window.close();console.log('PASS: UI initialization, eleven modes, PBKDF2/HMAC vectors, first enrollment, fragmented BLE exchange, speech focus and sensitivity settings, save, remembered reconnect, battery and clipping telemetry');
 })().catch(e=>{console.error(e);dom.window.close();process.exit(1)});

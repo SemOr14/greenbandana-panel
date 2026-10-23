@@ -2,7 +2,7 @@
 const SERVICE='97bcf501-696e-4f24-9b83-16bfa764b7e1',RX='97bcf502-696e-4f24-9b83-16bfa764b7e1',TX='97bcf503-696e-4f24-9b83-16bfa764b7e1',OTA='97bcf504-696e-4f24-9b83-16bfa764b7e1';
 const $=id=>document.getElementById(id),enc=new TextEncoder(),dec=new TextDecoder();
 const names=['Рот','Полосы ↕','Эквалайзер','Волна','Басы','Смыкание','Цвет','Дыхание','Басовый импульс','Пламя','Светомузыка','Своя 1','Своя 2','Своя 3'];
-let cfg={mode:0,lastMode:0,primaryMask:2015,customFps:4,customCount:4,customSound:0,fireLow:0xff1800,fireHigh:0xffdc40,fireIntensity:.8,fireCooling:.15,musicLow:0xff1800,musicMid:0x00ff50,musicHigh:0x2060ff,musicGain:1.5,brightness:90,currentLimitMa:900,base:0x00ff18,loud:0xff0000,heart:0xff1680,floorDb:-65,ceilingDb:-18,loudLevel:.82,bassLow:40,bassHigh:180,bassGain:2,roarLow:100,roarHigh:1800,roarDb:-14,roarBandRatio:.35,roarTriggerMs:200,roarHoldMs:15000,roarCloseMs:350,roarOpenMs:1800,changeStableMs:1000,changeDb:7,changeSpectrum:.2,attackMs:45,releaseMs:180,speed:1,batteryCorrection:1};
+let cfg={mode:0,lastMode:0,primaryMask:2015,customFps:4,customCount:4,customSound:0,fireLow:0xff1800,fireHigh:0xffdc40,fireIntensity:.8,fireCooling:.15,musicLow:0xff1800,musicMid:0x00ff50,musicHigh:0x2060ff,musicGain:1.5,brightness:90,currentLimitMa:900,base:0x00ff18,loud:0xff0000,heart:0xff1680,floorDb:-65,ceilingDb:-18,loudLevel:.82,bassLow:40,bassHigh:180,bassGain:2,roarLow:100,roarHigh:1800,roarDb:-14,roarBandRatio:.35,roarTriggerMs:200,roarHoldMs:15000,roarCloseMs:350,roarOpenMs:1800,changeStableMs:1000,changeDb:7,changeSpectrum:.2,attackMs:45,releaseMs:180,speed:1,batteryCorrection:1,micSensitivity:1,voiceFocus:0};
 let device,rx,tx,otaChar,hello,ready=false,demo=false,buffer='',serial=1,queue=Promise.resolve(),dirty=false,heartUntil=0,demoRoarAt=-1,demoFrame=0;
 let customPixels=Array(31).fill(0),customLoaded=false,latestBatteryVoltage=NaN;
 let capacityMa=storageGet('greenbandana-capacity-mah');if(!Number.isInteger(capacityMa)||capacityMa<100||capacityMa>30000)capacityMa=2500;
@@ -170,6 +170,16 @@ function buildControls(){
    $(parent).append(l);
   }
  }
+ const focus=document.createElement('label');focus.className='setting';focus.textContent='Фокус на речи · ослабление басовой музыки';
+ const focusOut=document.createElement('output'),focusSelect=document.createElement('select');focusSelect.id='setting-voiceFocus';
+ for(const [value,label] of [[0,'Выключен'],[1,'Включён · эвристика']]){const option=document.createElement('option');option.value=value;option.textContent=label;focusSelect.append(option);}
+ focusSelect.value=cfg.voiceFocus;focusOut.value=focusSelect.options[focusSelect.selectedIndex].text;focus.append(focusOut,focusSelect);
+ focusSelect.onchange=async()=>{if(await setting('voiceFocus',+focusSelect.value))focusOut.value=focusSelect.options[focusSelect.selectedIndex].text;else focusSelect.value=cfg.voiceFocus;};$('audio').prepend(focus);
+ const sens=document.createElement('label');sens.className='setting';sens.textContent='Общая чувствительность';
+ const sensOut=document.createElement('output'),sensSelect=document.createElement('select');sensSelect.id='setting-micSensitivity';
+ for(const [value,label] of [[1,'×1 · без снижения'],[2,'×½'],[3,'×⅓'],[4,'×¼'],[5,'×⅕']]){const option=document.createElement('option');option.value=value;option.textContent=label;sensSelect.append(option);}
+ sensSelect.value=cfg.micSensitivity;sensOut.value=sensSelect.options[sensSelect.selectedIndex].text;sens.append(sensOut,sensSelect);
+ sensSelect.onchange=async()=>{if(await setting('micSensitivity',+sensSelect.value))sensOut.value=sensSelect.options[sensSelect.selectedIndex].text;else sensSelect.value=cfg.micSensitivity;};$('audio').prepend(sens);
  $('currentLimitInput').value=cfg.currentLimitMa;
  updateModes();buildPrimaryModes();
 }

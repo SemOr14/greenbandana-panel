@@ -45,6 +45,7 @@ void configJson(JsonObject o){
 #define CFG_FIELD(n) o[#n]=cfg.n
  CFG_FIELD(primaryMask);CFG_FIELD(lastMode);CFG_FIELD(fireLow);CFG_FIELD(fireHigh);CFG_FIELD(fireIntensity);CFG_FIELD(fireCooling);CFG_FIELD(musicLow);CFG_FIELD(musicMid);CFG_FIELD(musicHigh);CFG_FIELD(musicGain);
  CFG_FIELD(mode);CFG_FIELD(brightness);CFG_FIELD(currentLimitMa);CFG_FIELD(base);CFG_FIELD(loud);CFG_FIELD(heart);CFG_FIELD(floorDb);CFG_FIELD(ceilingDb);CFG_FIELD(loudLevel);
+ CFG_FIELD(micSensitivity);CFG_FIELD(voiceFocus);
  CFG_FIELD(customFps);CFG_FIELD(customCount);CFG_FIELD(customSound);
  CFG_FIELD(bassLow);CFG_FIELD(bassHigh);CFG_FIELD(bassGain);CFG_FIELD(roarLow);CFG_FIELD(roarHigh);CFG_FIELD(roarDb);CFG_FIELD(roarBandRatio);CFG_FIELD(roarTriggerMs);CFG_FIELD(roarHoldMs);CFG_FIELD(roarCloseMs);CFG_FIELD(roarOpenMs);CFG_FIELD(changeStableMs);CFG_FIELD(changeDb);CFG_FIELD(changeSpectrum);CFG_FIELD(attackMs);CFG_FIELD(releaseMs);CFG_FIELD(speed);CFG_FIELD(batteryCorrection);
 #undef CFG_FIELD
@@ -61,6 +62,7 @@ bool setField(const String& name,JsonVariantConst value){
  CFG_FIELD(fireIntensity,.1,1);CFG_FIELD(fireCooling,.02,.5);CFG_FIELD(musicGain,.2,4);I(brightness,0,255);I(currentLimitMa,100,1800);
  I(base,0,16777215);I(loud,0,16777215);I(heart,0,16777215);
  I(customFps,1,20);I(customCount,1,8);I(customSound,0,2);
+ I(micSensitivity,1,5);I(voiceFocus,0,1);
  CFG_FIELD(floorDb,-100,-25);CFG_FIELD(ceilingDb,-24,-1);CFG_FIELD(loudLevel,.1,.99);
  I(bassLow,32,150);I(bassHigh,160,500);CFG_FIELD(bassGain,.1,6);
  I(roarLow,32,1500);I(roarHigh,1600,7000);CFG_FIELD(roarDb,-80,-1);CFG_FIELD(roarBandRatio,.01,.99);
@@ -111,7 +113,7 @@ void handleCommand(const char* text){
  int id=d["id"]|0;String op=d["op"]|"";
  if(op=="hello"){
   if(pairOpen()){authorized=true;pairUntil=0;}
- StaticJsonDocument<512>r;r["id"]=id;r["type"]="hello";r["configured"]=key.length()==64;r["pairing"]=pairOpen();r["unlocked"]=authorized;r["salt"]=salt;r["nonce"]=nonce;r["rounds"]=100000;r["version"]="1.2.1";if(authorized)r["rememberKey"]=key;emit(r);return;
+ StaticJsonDocument<512>r;r["id"]=id;r["type"]="hello";r["configured"]=key.length()==64;r["pairing"]=pairOpen();r["unlocked"]=authorized;r["salt"]=salt;r["nonce"]=nonce;r["rounds"]=100000;r["version"]="1.2.2";if(authorized)r["rememberKey"]=key;emit(r);return;
  }
  if(op=="enroll"){
   String k=d["key"]|"";
@@ -198,7 +200,7 @@ void buttons(uint32_t now){
 void telemetry(const std::array<Color,LEDS>& frame){
  DynamicJsonDocument d(1536);d["type"]="state";d["mode"]=cfg.mode;d["lastMode"]=cfg.lastMode;d["primaryMask"]=cfg.primaryMask;d["v"]=std::round(battery*100)/100;d["pct"]=int(batteryPercent(battery));d["batteryValid"]=battery>2.5&&battery<4.4;
  d["db"]=int(audio.db);d["peakDb"]=int(audio.peakDb);d["clip"]=lastClip!=0&&uint32_t(millis()-lastClip)<1500;d["mic"]=micReady&&audio.ok;
- d["level"]=std::round(audio.level*100)/100;d["bass"]=std::round(audio.bass*100)/100;d["roar"]=int(collapse.state);d["pairing"]=pairOpen();
+ d["level"]=std::round(audio.level*100)/100;d["bass"]=std::round(audio.bass*100)/100;d["voice"]=std::round(audio.voiceScore*100)/100;d["roar"]=int(collapse.state);d["pairing"]=pairOpen();
  auto b=d.createNestedArray("bands");for(float v:audio.display)b.add(int(v*100));
  String pixels;char h[7];for(auto p:frame){snprintf(h,sizeof(h),"%02x%02x%02x",p.r,p.g,p.b);pixels+=h;}d["pixels"]=pixels;emit(d);
 }
@@ -231,7 +233,7 @@ void setup(){
  auto rx=service->createCharacteristic(RX_UUID,NIMBLE_PROPERTY::WRITE|NIMBLE_PROPERTY::WRITE_ENC,512);rx->setCallbacks(new RxCallbacks());
  auto otaRx=service->createCharacteristic(OTA_UUID,NIMBLE_PROPERTY::WRITE|NIMBLE_PROPERTY::WRITE_ENC,512);otaRx->setCallbacks(new OtaCallbacks());
  service->start();auto ad=NimBLEDevice::getAdvertising();ad->addServiceUUID(SERVICE);ad->setScanResponse(true);ad->start();
- nonce=randomHex(32);Serial.println("GreenBandana 1.2.1 ready. Hold BOTH buttons 3 s for access; 8 s to reset bonds.");
+ nonce=randomHex(32);Serial.println("GreenBandana 1.2.2 ready. Hold BOTH buttons 3 s for access; 8 s to reset bonds.");
 }
 void loop(){
  uint32_t now=millis();
