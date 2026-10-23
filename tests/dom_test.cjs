@@ -3,6 +3,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 const root=path.resolve(__dirname,'..'),errors=[];
 const dom=new JSDOM(fs.readFileSync(path.join(root,'index.html'),'utf8'),{url:'https://bandana.test/',runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:new VirtualConsole().on('jsdomError',e=>errors.push(e.message))});
 const w=dom.window;w.TextEncoder=TextEncoder;w.TextDecoder=TextDecoder;w.isSecureContext=true;Object.defineProperty(w,'crypto',{value:crypto.webcrypto});
+ w.fetch=async()=>({ok:true,json:async()=>({version:'1.2.3'})});
 const ctx=dom.getInternalVMContext(),run=s=>vm.runInContext(s,ctx),$=id=>w.document.getElementById(id),sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const server={configured:false,salt:'00112233445566778899aabbccddeeff',nonce:'abc123',key:'',settings:{},saved:false};
 let wire='',fragments=0;
@@ -10,7 +11,7 @@ class Characteristic extends w.EventTarget{
  async startNotifications(){return this;}async readValue(){return new DataView(new ArrayBuffer(0));}
  async writeValueWithResponse(bytes){assert(bytes.byteLength<=18);wire+=new TextDecoder().decode(bytes);fragments++;if(!wire.endsWith('\n'))return;
   const p=JSON.parse(wire);wire='';let r={id:p.id,type:'ack',ok:true};
-  if(p.op==='hello')r={id:p.id,type:'hello',configured:server.configured,pairing:true,salt:server.salt,nonce:server.nonce,rounds:100000};
+  if(p.op==='hello')r={id:p.id,type:'hello',version:'1.2.2',configured:server.configured,pairing:true,salt:server.salt,nonce:server.nonce,rounds:100000};
   else if(p.op==='enroll'){server.key=p.key;server.configured=true;}
   else if(p.op==='auth')r.ok=p.proof===crypto.createHmac('sha256',Buffer.from(server.key,'hex')).update(server.nonce).digest('hex');
   else if(p.op==='config')r={id:p.id,type:'config',config:server.settings};
@@ -48,7 +49,7 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
  assert.equal(await run(`proof('${expected}','abc123')`),crypto.createHmac('sha256',Buffer.from(expected,'hex')).update('abc123').digest('hex'));
  await run('connect()');assert(!$('login').hidden);
  $('password').value=pass;$('authForm').requestSubmit($('authForm').querySelector('button'));
- await until(()=>run('ready'));await until(()=>run('customLoaded'));assert.equal(server.key,expected);assert(server.configured);assert(!$('controls').disabled);
+ await until(()=>run('ready'));await until(()=>run('customLoaded'));assert.equal(server.key,expected);assert(server.configured);assert(!$('controls').disabled);assert.match($('firmwareVersionInfo').textContent,/доступно обновление до 1\.2\.3/);assert(!$('otaUpdate').disabled);
  await run("setting('mode',5)");assert.equal(server.settings.mode,5);await run("setting('primaryMask',1<<10)");assert.equal(server.settings.primaryMask,1<<10);
  $('setting-voiceFocus').value='1';$('setting-voiceFocus').dispatchEvent(new w.Event('change'));await until(()=>server.settings.voiceFocus===1);
  $('setting-micSensitivity').value='5';$('setting-micSensitivity').dispatchEvent(new w.Event('change'));await until(()=>server.settings.micSensitivity===5);

@@ -2,6 +2,8 @@
 const SERVICE='97bcf501-696e-4f24-9b83-16bfa764b7e1',RX='97bcf502-696e-4f24-9b83-16bfa764b7e1',TX='97bcf503-696e-4f24-9b83-16bfa764b7e1',OTA='97bcf504-696e-4f24-9b83-16bfa764b7e1';
 const $=id=>document.getElementById(id),enc=new TextEncoder(),dec=new TextDecoder();
 const names=['Рот','Полосы ↕','Эквалайзер','Волна','Басы','Смыкание','Цвет','Дыхание','Басовый импульс','Пламя','Светомузыка','Своя 1','Своя 2','Своя 3'];
+let targetFirmwareVersion='1.2.3';
+const firmwareInfo=document.createElement('p');firmwareInfo.id='firmwareVersionInfo';firmwareInfo.className='note';$('otaUpdate').before(firmwareInfo);
 let cfg={mode:0,lastMode:0,primaryMask:2015,customFps:4,customCount:4,customSound:0,fireLow:0xff1800,fireHigh:0xffdc40,fireIntensity:.8,fireCooling:.15,musicLow:0xff1800,musicMid:0x00ff50,musicHigh:0x2060ff,musicGain:1.5,brightness:90,currentLimitMa:900,base:0x00ff18,loud:0xff0000,heart:0xff1680,floorDb:-65,ceilingDb:-18,loudLevel:.82,bassLow:40,bassHigh:180,bassGain:2,roarLow:100,roarHigh:1800,roarDb:-14,roarBandRatio:.35,roarTriggerMs:200,roarHoldMs:15000,roarCloseMs:350,roarOpenMs:1800,changeStableMs:1000,changeDb:7,changeSpectrum:.2,attackMs:45,releaseMs:180,speed:1,batteryCorrection:1,micSensitivity:1,voiceFocus:0};
 let device,rx,tx,otaChar,hello,ready=false,demo=false,buffer='',serial=1,queue=Promise.resolve(),dirty=false,heartUntil=0,demoRoarAt=-1,demoFrame=0;
 let customPixels=Array(31).fill(0),customLoaded=false,latestBatteryVoltage=NaN;
@@ -39,6 +41,15 @@ function updatePowerReadout(s,record=true){
 function unhex(s){return new Uint8Array(s.match(/../g).map(b=>parseInt(b,16)));}
 async function derive(password,salt){const k=await crypto.subtle.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveBits']);return hex(new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt:unhex(salt),iterations:100000,hash:'SHA-256'},k,256)));}
 async function proof(key,nonce){const k=await crypto.subtle.importKey('raw',unhex(key),{name:'HMAC',hash:'SHA-256'},false,['sign']);return hex(new Uint8Array(await crypto.subtle.sign('HMAC',k,enc.encode(nonce))));}
+function compareVersions(a,b){const x=String(a).split('.').map(Number),y=String(b).split('.').map(Number);for(let i=0;i<3;i++){const d=(x[i]||0)-(y[i]||0);if(d)return Math.sign(d);}return 0;}
+async function refreshFirmwareInfo(){
+ try{const response=await fetch('./firmware.json',{cache:'no-store'});if(response.ok){const meta=await response.json();if(/^\d+\.\d+\.\d+$/.test(meta.version||''))targetFirmwareVersion=meta.version;}}
+ catch{}
+ const current=hello?.version,cmp=current?compareVersions(current,targetFirmwareVersion):-1;
+ firmwareInfo.textContent=current?(cmp===0?`Прошивка на бандане ${current} · актуальна.`:cmp<0?`Прошивка на бандане ${current} · доступно обновление до ${targetFirmwareVersion}.`:`На бандане ${current}, это новее доступной версии ${targetFirmwareVersion}.`):`Доступна прошивка ${targetFirmwareVersion}; версию маски проверить не удалось.`;
+ const button=$('otaUpdate');button.disabled=!otaChar||(current&&cmp>=0);
+ button.textContent=current&&cmp===0?`Установлена актуальная ${current}`:`Обновить до ${targetFirmwareVersion}`;
+}
 function command(op,fields={}){
  const task=async()=>{
   if(!rx||!device?.gatt.connected)throw Error('Нет Bluetooth-соединения');
@@ -82,7 +93,7 @@ async function connect(){
  finally{$('connect').disabled=false;}
 }
 async function getHello(){
- hello=await command('hello');ready=false;$('controls').disabled=true;
+ hello=await command('hello');await refreshFirmwareInfo();ready=false;$('controls').disabled=true;
  if(hello.unlocked){if(hello.rememberKey&&$('remember').checked)storageSet(cacheKey(),{salt:hello.salt,key:hello.rememberKey});await authenticated();return;}
  const saved=storageGet(cacheKey());
  if(hello.configured&&saved?.salt===hello.salt&&saved?.key){try{await command('auth',{proof:await proof(saved.key,hello.nonce)});await authenticated();return;}catch{forget();hello=await command('hello');}}
@@ -95,7 +106,7 @@ async function getHello(){
 async function authenticated(){
  const p=await command('config');Object.assign(cfg,p.config);ready=true;latestBatteryVoltage=NaN;dirty=false;buildControls();$('currentLimitStatus').textContent='';$('batteryCalibrationStatus').textContent='';$('controls').disabled=false;$('login').hidden=true;$('password').value='';
  status('Маска подключена',true);$('hint').textContent='Управление по BLE · сеть и VPN остаются прежними';$('dirty').textContent='Настройки загружены из маски';
- $('otaUpdate').disabled=!otaChar;
+  refreshFirmwareInfo();
  loadCustomFrame().catch(e=>notice('Редактор анимации: '+e.message));
 }
 $('otaUpdate').onclick=async()=>{

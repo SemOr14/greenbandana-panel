@@ -9,6 +9,7 @@
 #include <mbedtls/md.h>
 #include "engine.h"
 using namespace Mask;
+constexpr char FW_VERSION[]="1.2.3";
 constexpr int PIN_BAT=1,PIN_BCLK=4,PIN_WS=5,PIN_SD=6,PIN_LED=7,PIN_NEXT=8,PIN_PREV=9;
 constexpr char SERVICE[]="97bcf501-696e-4f24-9b83-16bfa764b7e1";
 constexpr char RX_UUID[]="97bcf502-696e-4f24-9b83-16bfa764b7e1";
@@ -21,7 +22,7 @@ NimBLEServer* server=nullptr;NimBLECharacteristic* tx=nullptr;
 QueueHandle_t commands;volatile uint32_t connectionEpoch=0;volatile bool connected=false;
 uint32_t activeEpoch=0,pairUntil=0,otaPermitUntil=0,rebootAt=0,heartStart=0,lastTelemetry=0,lastBattery=0,lastAudioUpdate=0,lastClip=0;
 int testLed=-1;uint32_t testAt=0,pairFlashUntil=0;
-bool authorized=false,heartActive=false,micReady=false;float battery=0;String salt,key,nonce,outgoing;
+bool authorized=false,heartActive=false,micReady=false,firmwareSuccessAnimation=false;float battery=0;String salt,key,nonce,outgoing;uint32_t firmwareSuccessAt=0;
 volatile bool otaActive=false,otaError=false;volatile size_t otaWritten=0;size_t otaExpected=0;
 size_t outPos=0;String incoming;
 struct Command{uint32_t epoch;char text[513];};
@@ -113,7 +114,7 @@ void handleCommand(const char* text){
  int id=d["id"]|0;String op=d["op"]|"";
  if(op=="hello"){
   if(pairOpen()){authorized=true;pairUntil=0;}
- StaticJsonDocument<512>r;r["id"]=id;r["type"]="hello";r["configured"]=key.length()==64;r["pairing"]=pairOpen();r["unlocked"]=authorized;r["salt"]=salt;r["nonce"]=nonce;r["rounds"]=100000;r["version"]="1.2.2";if(authorized)r["rememberKey"]=key;emit(r);return;
+  StaticJsonDocument<512>r;r["id"]=id;r["type"]="hello";r["configured"]=key.length()==64;r["pairing"]=pairOpen();r["unlocked"]=authorized;r["salt"]=salt;r["nonce"]=nonce;r["rounds"]=100000;r["version"]=FW_VERSION;if(authorized)r["rememberKey"]=key;emit(r);return;
  }
  if(op=="enroll"){
   String k=d["key"]|"";
@@ -155,7 +156,7 @@ void handleCommand(const char* text){
  }
  if(op=="otaEnd"){
   if(!otaActive||otaError||otaWritten!=otaExpected){if(otaActive)Update.abort();otaActive=false;reply(id,false,"ota_incomplete");return;}
-  otaActive=false;if(!Update.end()){reply(id,false,"ota_verify_failed");return;}
+   otaActive=false;if(!Update.end()){reply(id,false,"ota_verify_failed");return;}prefs.putBool("fwSuccess",true);
   reply(id,true);rebootAt=millis()+3000;return;
  }
  if(op=="otaAbort"){if(otaActive)Update.abort();otaActive=false;reply(id,true);return;}
@@ -208,6 +209,7 @@ void setup(){
  Serial.begin(115200);pinMode(PIN_NEXT,INPUT_PULLUP);pinMode(PIN_PREV,INPUT_PULLUP);
  strip.begin();strip.clear();strip.show();
  prefs.begin("bandana",false);salt=prefs.getString("salt","");key=prefs.getString("key","");
+ firmwareSuccessAnimation=prefs.getBool("fwSuccess",false);if(firmwareSuccessAnimation)prefs.putBool("fwSuccess",false);
  renderer.setCustomFrames(&customFrames);
  for(int slot=0;slot<3;slot++)for(int frame=0;frame<8;frame++){char storageKey[12];snprintf(storageKey,sizeof(storageKey),"anim%d_%d",slot,frame);if(prefs.getBytesLength(storageKey)==LEDS*3)prefs.getBytes(storageKey,customFrames[slot][frame].data(),LEDS*3);}
  if(!validHex(salt,16)){salt=randomHex(16);prefs.putString("salt",salt);}if(!validHex(key,32))key="";
@@ -232,8 +234,8 @@ void setup(){
  tx=service->createCharacteristic(TX_UUID,NIMBLE_PROPERTY::NOTIFY|NIMBLE_PROPERTY::READ|NIMBLE_PROPERTY::READ_ENC,512);
  auto rx=service->createCharacteristic(RX_UUID,NIMBLE_PROPERTY::WRITE|NIMBLE_PROPERTY::WRITE_ENC,512);rx->setCallbacks(new RxCallbacks());
  auto otaRx=service->createCharacteristic(OTA_UUID,NIMBLE_PROPERTY::WRITE|NIMBLE_PROPERTY::WRITE_ENC,512);otaRx->setCallbacks(new OtaCallbacks());
- service->start();auto ad=NimBLEDevice::getAdvertising();ad->addServiceUUID(SERVICE);ad->setScanResponse(true);ad->start();
- nonce=randomHex(32);Serial.println("GreenBandana 1.2.2 ready. Hold BOTH buttons 3 s for access; 8 s to reset bonds.");
+ service->start();auto ad=NimBLEDevice::getAdvertising();ad->addServiceUUID(SERVICE);ad->setScanResponse(true);ad->start();if(firmwareSuccessAnimation)firmwareSuccessAt=millis();
+ nonce=randomHex(32);Serial.printf("GreenBandana %s ready. Hold BOTH buttons 3 s for access; 8 s to reset bonds.\n",FW_VERSION);
 }
 void loop(){
  uint32_t now=millis();
@@ -260,6 +262,20 @@ void loop(){
   auto frame=renderer.render(now,cfg,audio,collapse,heartActive);
   if(int32_t(pairFlashUntil-now)>0)for(auto& p:frame)p={32,0,0};
   if(testLed>=0){if(uint32_t(now-testAt)<1500){for(auto& p:frame)p={};frame[testLed]={24,24,24};}else testLed=-1;}
+  if(firmwareSuccessAnimation){uint32_t elapsed=now-firmwareSuccessAt;if(elapsed>=2400)firmwareSuccessAnimation=false;else for(int i=0;i<LEDS;i++){
+   float x=BandanaMatrix::kPosition[i].x_mm,y=BandanaMatrix::kPosition[i].y_mm;
+   float distance=std::abs(x)/49.5f;Color mark{};
+   if(elapsed<700){if(distance<=float(elapsed)/700.f)mark={0,105,255};}
+   else{
+    mark={18,0,36};
+    // A check mark mapped to the actual sparse 6/6/7/6/6 LED rows.
+    auto segmentDistance=[&](float x1,float y1,float x2,float y2){float dx=x2-x1,dy=y2-y1;float t=bound(((x-x1)*dx+(y-y1)*dy)/(dx*dx+dy*dy));return std::hypot(x-(x1+t*dx),y-(y1+t*dy));};
+    bool check=segmentDistance(-24.75f,0.f,-8.25f,14.8f)<10.5f||segmentDistance(-8.25f,14.8f,24.75f,-14.8f)<10.5f;
+    if(check){float pulse=.78f+.22f*std::sin(float(elapsed-700)*.009f);mark={uint8_t(255*pulse),uint8_t(35*pulse),uint8_t(210*pulse)};}
+    float fade=elapsed>1900?1.f-float(elapsed-1900)/500.f:1.f;mark=scale(mark,fade);
+   }
+   frame[i]=mark;
+  }}
   for(int i=0;i<LEDS;i++)strip.setPixelColor(i,frame[i].r,frame[i].g,frame[i].b);strip.show();
   if(connected&&authorized&&outPos==outgoing.length()&&uint32_t(now-lastTelemetry)>=1000){lastTelemetry=now;telemetry(frame);}
  }
