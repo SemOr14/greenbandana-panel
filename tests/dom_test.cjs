@@ -35,9 +35,9 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
  assert.match(w.document.querySelector('script[src^="font-editor.js"]').getAttribute('src'),/v=1\.3\.1/);
  assert.equal($('fontEditor').closest('fieldset'),null,'font editor stays available without connecting');
  assert($('otaUpdate').compareDocumentPosition($('fontEditor'))&w.Node.DOCUMENT_POSITION_FOLLOWING,'font editor stays at the bottom after firmware update');
- assert.equal($('modePanel').nextElementSibling.id,'primaryModeSettings','mode cycle selection is moved into its own collapsed panel');
+ assert.equal($('modePanel').nextElementSibling.id,'quickSettings','always-visible quick controls follow the mode panel');
+ assert.equal($('quickSettings').nextElementSibling.id,'primaryModeSettings','mode selection comes after the non-collapsible panels');
  assert.equal($('primaryModeSettings').open,false);
- assert.equal($('primaryModeSettings').nextElementSibling.id,'quickSettings','quick controls follow mode selection');
  assert.equal($('quickSettings').querySelector('#setting-brightness')!==null,true);
  assert.equal($('quickSettings').querySelector('#setting-speed')!==null,true);
  assert.equal($('quickSettings').querySelector('#setting-micSensitivity')!==null,true);
