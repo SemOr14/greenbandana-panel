@@ -190,7 +190,7 @@ function buildControls(){
  const sensOut=document.createElement('output'),sensSelect=document.createElement('select');sensSelect.id='setting-micSensitivity';
  for(const [value,label] of [[1,'×1 · без снижения'],[2,'×½'],[3,'×⅓'],[4,'×¼'],[5,'×⅕']]){const option=document.createElement('option');option.value=value;option.textContent=label;sensSelect.append(option);}
  sensSelect.value=cfg.micSensitivity;sensOut.value=sensSelect.options[sensSelect.selectedIndex].text;sens.append(sensOut,sensSelect);
- sensSelect.onchange=async()=>{if(await setting('micSensitivity',+sensSelect.value))sensOut.value=sensSelect.options[sensSelect.selectedIndex].text;else sensSelect.value=cfg.micSensitivity;};$('audio').prepend(sens);
+ sensSelect.onchange=async()=>{if(await setting('micSensitivity',+sensSelect.value))sensOut.value=sensSelect.options[sensSelect.selectedIndex].text;else sensSelect.value=cfg.micSensitivity;};$('quickMicSensitivity').append(sens);
  $('currentLimitInput').value=cfg.currentLimitMa;
  updateModes();buildPrimaryModes();
 }
