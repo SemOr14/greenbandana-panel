@@ -32,13 +32,20 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
 (async()=>{
  assert.equal(w.document.querySelectorAll('#matrix circle').length,31);
  assert.equal($('fontEditor').open,false);
- assert.match(w.document.querySelector('script[src^="font-editor.js"]').getAttribute('src'),/v=1\.3\.0/);
+ assert.match(w.document.querySelector('script[src^="font-editor.js"]').getAttribute('src'),/v=1\.3\.1/);
  assert.equal($('fontEditor').closest('fieldset'),null,'font editor stays available without connecting');
- assert($('fontEditor').compareDocumentPosition($('otaUpdate'))&w.Node.DOCUMENT_POSITION_FOLLOWING,'firmware update stays after the font editor');
+ assert($('otaUpdate').compareDocumentPosition($('fontEditor'))&w.Node.DOCUMENT_POSITION_FOLLOWING,'font editor stays at the bottom after firmware update');
+ assert.equal($('modePanel').nextElementSibling.id,'primaryModeSettings','mode cycle selection is moved into its own collapsed panel');
+ assert.equal($('primaryModeSettings').open,false);
+ assert.equal($('primaryModeSettings').nextElementSibling.id,'quickSettings','quick controls follow mode selection');
+ assert.equal($('quickSettings').querySelector('#setting-brightness')!==null,true);
+ assert.equal($('quickSettings').querySelector('#setting-speed')!==null,true);
+ assert.equal($('quickSettings').querySelector('#setting-micSensitivity')!==null,true);
  assert.equal(w.document.querySelectorAll('#fontMatrix circle').length,31);
  assert.equal(w.document.querySelectorAll('#fontMatrix circle[data-cell]').length,31);
  assert.equal($('fontCharInput').type,'text');
  assert.equal(w.document.querySelectorAll('#fontEditor select').length,0,'character selection uses text input, not a dropdown');
+ assert.equal($('firmwareSection').open,false,'firmware update is a collapsed settings item');
  const input=$('fontCharInput'),matrix=$('fontMatrix');
  const aPattern=Array.from(matrix.querySelectorAll('circle[data-cell]'),node=>node.getAttribute('fill')).join(',');
  input.value='Б';input.dispatchEvent(new w.Event('input',{bubbles:true}));
