@@ -44,6 +44,7 @@ void audioTests(){
  auto midTone=focused.run(samples,c);assert(midTone.voiceScore>.9f&&midTone.level>.1f);
 }
 void matrixAndPowerTests(){
+ assert(std::abs(mouthRedBoost(0,{255,0,0})-1.f)<.001f&&std::abs(mouthRedBoost(.5f,{255,0,0})-1.06f)<.001f&&std::abs(mouthRedBoost(1,{255,0,0})-1.12f)<.001f&&std::abs(mouthRedBoost(1,{0,0,255})-1.f)<.001f);
  std::set<int> ids;for(int r=0;r<5;r++)for(int x=0;x<13;x++)if(BandanaMatrix::indexAt(x,r)>=0)ids.insert(BandanaMatrix::indexAt(x,r));assert(ids.size()==31&&*ids.begin()==0&&*ids.rbegin()==30);
  Config c;Renderer renderer;Collapse roar;Audio a=loud();a.level=.8;a.bass=.8;
  for(int mode=0;mode<MODES;mode++)for(bool heart:{false,true}){c.mode=mode;c.brightness=255;c.base=0xffffff;c.loud=0xffffff;c.currentLimitMa=500;
