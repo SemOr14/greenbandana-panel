@@ -40,7 +40,9 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
  assert.equal($('quickSettings').nextElementSibling.querySelector('summary').textContent,'Микрофон и речь','microphone settings are the first collapsible item');
  assert.equal($('quickSettings').nextElementSibling.nextElementSibling.id,'primaryModeSettings','mode cycle selection follows the microphone panel');
  assert.equal($('primaryModeSettings').open,false);
- assert.equal($('batteryControls').querySelector('summary').textContent,'Аккумулятор и питание','battery and power are the final settings panel');
+ assert.equal($('batteryControls').querySelector('details summary').textContent,'Аккумулятор и питание','battery and power follows the font editor');
+ assert.equal($('batteryControls').querySelector('details').nextElementSibling.id,'firmwareSection','firmware update follows battery and power');
+ assert.equal($('firmwareSection').nextElementSibling.className,'savebar','save button follows the final firmware panel');
  assert.equal(w.document.querySelectorAll('#batteryCapacity').length,1,'battery controls appear only once');
  assert.equal($('firmwareSection').open,false,'firmware update is a collapsed settings item');
  assert.equal($('quickSettings').querySelector('#setting-brightness')!==null,true);
