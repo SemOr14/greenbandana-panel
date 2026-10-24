@@ -31,6 +31,7 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
 (async()=>{
  assert.equal(w.document.querySelectorAll('#matrix circle').length,31);
  assert.equal($('fontEditor').open,false);
+ assert.match(w.document.querySelector('script[src^="font-editor.js"]').getAttribute('src'),/v=1\.2\.9/);
  assert.equal($('fontEditor').closest('fieldset'),null,'font editor stays available without connecting');
  assert($('fontEditor').compareDocumentPosition($('otaUpdate'))&w.Node.DOCUMENT_POSITION_FOLLOWING,'firmware update stays after the font editor');
  assert.equal(w.document.querySelectorAll('#fontMatrix circle').length,31);
