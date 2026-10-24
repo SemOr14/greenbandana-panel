@@ -19,3 +19,10 @@
 .fontActions{margin-top:12px}
 .fontImport{display:inline-flex;align-items:center;cursor:pointer;font-size:14px}
 .fontImport input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+
+/* Keep the same vertical rhythm across cards, including fieldset boundaries. */
+main{display:flex;flex-direction:column;gap:14px}
+main>section,main>details.settingsSection,main>fieldset,main>footer{margin:0}
+main>footer{margin-top:16px}
+fieldset{display:flex;flex-direction:column;gap:14px;margin:0}
+fieldset>section,fieldset>details.settingsSection,fieldset>.savebar{margin:0}
