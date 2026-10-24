@@ -3,18 +3,22 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 const root=path.resolve(__dirname,'..'),errors=[];
 const dom=new JSDOM(fs.readFileSync(path.join(root,'index.html'),'utf8'),{url:'https://bandana.test/',runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:new VirtualConsole().on('jsdomError',e=>errors.push(e.message))});
 const w=dom.window;w.TextEncoder=TextEncoder;w.TextDecoder=TextDecoder;w.isSecureContext=true;Object.defineProperty(w,'crypto',{value:crypto.webcrypto});
- w.fetch=async()=>({ok:true,json:async()=>({version:'1.2.3'})});
+ w.fetch=async()=>({ok:true,json:async()=>({version:'1.3.0'})});
 const ctx=dom.getInternalVMContext(),run=s=>vm.runInContext(s,ctx),$=id=>w.document.getElementById(id),sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const server={configured:false,salt:'00112233445566778899aabbccddeeff',nonce:'abc123',key:'',settings:{},saved:false};
-let wire='',fragments=0;
+const server={configured:false,salt:'00112233445566778899aabbccddeeff',nonce:'abc123',key:'',settings:{},saved:false,presets:Array.from({length:4},()=>({name:'',values:{}}))};
+let wire=[],fragments=0;
 class Characteristic extends w.EventTarget{
  async startNotifications(){return this;}async readValue(){return new DataView(new ArrayBuffer(0));}
- async writeValueWithResponse(bytes){assert(bytes.byteLength<=18);wire+=new TextDecoder().decode(bytes);fragments++;if(!wire.endsWith('\n'))return;
-  const p=JSON.parse(wire);wire='';let r={id:p.id,type:'ack',ok:true};
+ async writeValueWithResponse(bytes){assert(bytes.byteLength<=18);wire.push(...bytes);fragments++;if(wire[wire.length-1]!==10)return;
+  const p=JSON.parse(new TextDecoder().decode(Uint8Array.from(wire)));wire=[];let r={id:p.id,type:'ack',ok:true};
   if(p.op==='hello')r={id:p.id,type:'hello',version:'1.2.2',configured:server.configured,pairing:true,salt:server.salt,nonce:server.nonce,rounds:100000};
   else if(p.op==='enroll'){server.key=p.key;server.configured=true;}
   else if(p.op==='auth')r.ok=p.proof===crypto.createHmac('sha256',Buffer.from(server.key,'hex')).update(server.nonce).digest('hex');
   else if(p.op==='config')r={id:p.id,type:'config',config:server.settings};
+  else if(p.op==='micPresetGet')r={id:p.id,type:'micPresets',presets:server.presets,active:server.settings.activeMicPreset??-1};
+  else if(p.op==='micPresetSave'){server.presets[p.slot]={name:p.name,values:p.values};server.settings.activeMicPreset=p.slot;}
+  else if(p.op==='micPresetApply'){Object.assign(server.settings,server.presets[p.slot].values);server.settings.activeMicPreset=p.slot;}
+  else if(p.op==='modeLock')server.settings.modeLocked=p.locked;
   else if(p.op==='customGet')r={id:p.id,type:'customFrame',slot:p.slot,frame:p.frame,pixels:'000000'.repeat(31)};
   else if(p.op==='set')server.settings[p.name]=p.value;
   else if(p.op==='save')server.saved=true;
@@ -32,8 +36,8 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
 (async()=>{
  assert.equal(w.document.querySelectorAll('#matrix circle').length,31);
  assert.equal($('fontEditor').open,false);
- assert.match(w.document.querySelector('script[src^="font-editor.js"]').getAttribute('src'),/v=1\.3\.3/);
- assert.match(w.document.querySelector('link[rel="stylesheet"]').getAttribute('href'),/v=1\.3\.3/);
+ assert.match(w.document.querySelector('script[src^="font-editor.js"]').getAttribute('src'),/v=1\.4\.0/);
+ assert.match(w.document.querySelector('link[rel="stylesheet"]').getAttribute('href'),/v=1\.4\.0/);
  assert.equal($('fontEditor').closest('fieldset'),null,'font editor stays available without connecting');
  assert.equal($('fontEditor').nextElementSibling.id,'batteryControls','font editor is directly before battery and power');
  assert.equal($('batteryControls').disabled,true,'battery controls remain disabled until connection');
@@ -88,10 +92,15 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
  assert.equal(await run(`proof('${expected}','abc123')`),crypto.createHmac('sha256',Buffer.from(expected,'hex')).update('abc123').digest('hex'));
  await run('connect()');assert(!$('login').hidden);
  $('password').value=pass;$('authForm').requestSubmit($('authForm').querySelector('button'));
- await until(()=>run('ready'));await until(()=>run('customLoaded'));assert.equal(server.key,expected);assert(server.configured);assert(!$('controls').disabled);assert(!$('batteryControls').disabled);assert.match($('firmwareVersionInfo').textContent,/доступно обновление до 1\.2\.3/);assert(!$('otaUpdate').disabled);
+ await until(()=>run('ready'));await until(()=>run('customLoaded'));assert.equal(server.key,expected);assert(server.configured);assert(!$('controls').disabled);assert(!$('batteryControls').disabled);assert.match($('firmwareVersionInfo').textContent,/доступно обновление до 1\.3\.0/);assert(!$('otaUpdate').disabled);
  await run("setting('mode',5)");assert.equal(server.settings.mode,5);await run("setting('primaryMask',1<<10)");assert.equal(server.settings.primaryMask,1<<10);
  $('setting-voiceFocus').value='1';$('setting-voiceFocus').dispatchEvent(new w.Event('change'));await until(()=>server.settings.voiceFocus===1);
  $('setting-micSensitivity').value='5';$('setting-micSensitivity').dispatchEvent(new w.Event('change'));await until(()=>server.settings.micSensitivity===5);
+ $('modeLock').click();await until(()=>server.settings.modeLocked===true);assert.match($('modeLockStatus').textContent,/три раза/);
+ await run("setting('mode',6)");assert.equal(server.settings.mode,6,'phone can choose a mode while hardware mode switching is locked');
+ $('micPresetSelect').value='0';$('micPresetSelect').dispatchEvent(new w.Event('change'));$('micPresetName').value='Концерт';$('micPresetSave').click();await until(()=>server.presets[0].name==='Концерт');assert.equal(server.presets[0].values.micSensitivity,5);assert.equal(run('cfg.activeMicPreset'),0);
+ $('setting-micSensitivity').value='1';$('setting-micSensitivity').dispatchEvent(new w.Event('change'));await until(()=>server.settings.micSensitivity===1);
+ $('micPresetSelect').value='0';$('micPresetSelect').dispatchEvent(new w.Event('change'));await until(()=>server.settings.micSensitivity===5);assert.equal(run('cfg.micSensitivity'),5);
  $('save').click();await until(()=>server.saved);
  // Read/write fragmentation and reconnect with remembered access, no second password entry.
  assert(fragments>10);device.gatt.disconnect();assert($('controls').disabled);assert($('batteryControls').disabled);
