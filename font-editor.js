@@ -22,6 +22,7 @@
   start+=n;
  }
  const rowPoints=Array.from({length:5},(_,row)=>positions.filter(p=>p.row===row).sort((a,b)=>a.x-b.x).slice(1,6));
+ function expandLegacyBits(bits){const full=Array(31).fill('0');rowPoints.forEach((row,r)=>row.forEach((p,c)=>full[p.index]=bits[r*5+c]));return full.join('');}
  function defaultBits(ch){
   const rows=DEFAULT_ROWS[ch]||({
    '!':['.#..','.#..','.#..','....','.#..'],'?':['.##.','...#','..#.','....','..#.'],
@@ -36,28 +37,25 @@
   const sourceWidth=rows[0].length,left=Math.ceil((5-sourceWidth)/2);
   const bits=[];
   for(const row of rows){for(let col=0;col<5;col++){const sourceCol=col-left;bits.push(sourceCol>=0&&sourceCol<sourceWidth&&row[sourceCol]==='#'?1:0);}}
-  return bits.join('');
+  return expandLegacyBits(bits.join(''));
  }
  const defaults=Object.fromEntries(uniqueChars.map(ch=>[ch,defaultBits(ch)]));
  function cleanFont(value){
   if(!value||typeof value!=='object')return {...defaults};
   const result={...defaults};
-  for(const ch of uniqueChars){const bits=value[ch];if(typeof bits==='string'&&/^[01]{25}$/.test(bits))result[ch]=bits;}
+  for(const ch of uniqueChars){const bits=value[ch];if(typeof bits==='string'&&/^[01]{31}$/.test(bits))result[ch]=bits;else if(typeof bits==='string'&&/^[01]{25}$/.test(bits))result[ch]=expandLegacyBits(bits);}
   return result;
  }
  function readSaved(){try{return cleanFont(JSON.parse(localStorage.getItem(STORE_KEY))?.glyphs);}catch{return {...defaults};}}
  let glyphs=readSaved(), selectedChar=uniqueChars[0];
  const charInput=$('fontCharInput'), svg=$('fontMatrix'), dotByLed=new Map();
- const selectedCellByLed=new Map();
- rowPoints.forEach((rowPoints,row)=>rowPoints.forEach((p,col)=>selectedCellByLed.set(p.index,row*5+col)));
+ const selectedCellByLed=new Map(positions.map(p=>[p.index,p.index]));
  positions.forEach(p=>{
   const circle=document.createElementNS(ns,'circle');circle.setAttribute('cx',p.x);circle.setAttribute('cy',p.y);circle.setAttribute('r',5.0);circle.classList.add('fontDot');
-  const cell=selectedCellByLed.get(p.index);
-  if(cell===undefined){circle.classList.add('fontDotLocked');const title=document.createElementNS(ns,'title');title.textContent='Крайний диод не входит в область символов';circle.append(title);}
-  else{circle.dataset.cell=cell;circle.setAttribute('tabindex','0');circle.setAttribute('role','button');circle.setAttribute('aria-label',`Пиксель ${Math.floor(cell/5)+1}, ${cell%5+1}`);circle.addEventListener('click',()=>toggleCell(cell));circle.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleCell(cell);}});}
+  const cell=p.index;circle.dataset.cell=cell;circle.setAttribute('tabindex','0');circle.setAttribute('role','button');circle.setAttribute('aria-label',`Диод ${cell+1}`);circle.addEventListener('click',()=>toggleCell(cell));circle.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleCell(cell);}});
   svg.append(circle);dotByLed.set(p.index,circle);
  });
- function widthOf(bits){let lo=5,hi=-1;for(let r=0;r<5;r++)for(let c=0;c<5;c++)if(bits[r*5+c]==='1'){lo=Math.min(lo,c);hi=Math.max(hi,c);}return hi<0?0:Math.max(3,hi-lo+1);}
+ function widthOf(bits){let width=0;for(let row=0;row<5;row++){const active=positions.filter(p=>p.row===row&&bits[p.index]==='1');if(active.length){const xs=active.map(p=>p.x);width=Math.max(width,Math.round((Math.max(...xs)-Math.min(...xs))/16.5)+1);}}return width?Math.max(3,width):0;}
  function paint(){
   const bits=glyphs[selectedChar]||defaults[selectedChar];
   for(const p of positions){const circle=dotByLed.get(p.index),cell=selectedCellByLed.get(p.index);circle.setAttribute('fill',cell!==undefined&&bits[cell]==='1'?'#8ff0a0':'#17221b');circle.classList.toggle('fontDotOn',cell!==undefined&&bits[cell]==='1');}

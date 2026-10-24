@@ -26,16 +26,17 @@ const tx=new Characteristic(),rx=new Characteristic();
 class Device extends w.EventTarget{constructor(){super();this.id='test-mask';this.gatt={connected:false,connect:async()=>{this.gatt.connected=true;return{getPrimaryService:async()=>({getCharacteristic:async id=>id.includes('f502')?rx:tx})};},disconnect:()=>{this.gatt.connected=false;this.dispatchEvent(new w.Event('gattserverdisconnected'));}};}}
 const device=new Device();Object.defineProperty(w.navigator,'bluetooth',{value:{requestDevice:async()=>device}});
 run(fs.readFileSync(path.join(root,'app.js'),'utf8'));
+w.localStorage.setItem('greenbandana-font-v1',JSON.stringify({version:1,glyphs:{А:'1'.repeat(25)}}));
 run(fs.readFileSync(path.join(root,'font-editor.js'),'utf8'));
 async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;await sleep(10);}throw Error('Timeout');}
 (async()=>{
  assert.equal(w.document.querySelectorAll('#matrix circle').length,31);
  assert.equal($('fontEditor').open,false);
- assert.match(w.document.querySelector('script[src^="font-editor.js"]').getAttribute('src'),/v=1\.2\.9/);
+ assert.match(w.document.querySelector('script[src^="font-editor.js"]').getAttribute('src'),/v=1\.3\.0/);
  assert.equal($('fontEditor').closest('fieldset'),null,'font editor stays available without connecting');
  assert($('fontEditor').compareDocumentPosition($('otaUpdate'))&w.Node.DOCUMENT_POSITION_FOLLOWING,'firmware update stays after the font editor');
  assert.equal(w.document.querySelectorAll('#fontMatrix circle').length,31);
- assert.equal(w.document.querySelectorAll('#fontMatrix circle[data-cell]').length,25);
+ assert.equal(w.document.querySelectorAll('#fontMatrix circle[data-cell]').length,31);
  assert.equal($('fontCharInput').type,'text');
  assert.equal(w.document.querySelectorAll('#fontEditor select').length,0,'character selection uses text input, not a dropdown');
  const input=$('fontCharInput'),matrix=$('fontMatrix');
@@ -46,7 +47,11 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
  input.value='А';input.dispatchEvent(new w.Event('input',{bubbles:true}));
  const fontPixel=$('fontMatrix').querySelector('circle[data-cell="0"]'),fontBefore=fontPixel.getAttribute('fill');
  fontPixel.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));assert.notEqual(fontPixel.getAttribute('fill'),fontBefore);
+ matrix.querySelector('circle[data-cell="12"]').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+ matrix.querySelector('circle[data-cell="18"]').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));
+ assert.equal($('fontWidth').textContent,'Ширина: 7 px','the full center row is editable at 7 pixels wide');
  $('fontSave').click();assert(JSON.parse(w.localStorage.getItem('greenbandana-font-v1')).glyphs.А);
+ assert.equal(JSON.parse(w.localStorage.getItem('greenbandana-font-v1')).glyphs.А.length,31,'legacy 5x5 font is migrated to all 31 LEDs');
  assert.equal(fragments,0,'font editing must not send BLE commands');
  $('demo').click();assert(!$('controls').disabled);
  for(let i=0;i<11;i++){await run(`setting('mode',${i})`);assert.equal(run('cfg.mode'),i);}
@@ -79,5 +84,5 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
  run(`incoming({target:{value:new DataView(new TextEncoder().encode(JSON.stringify({type:'state',mode:10,lastMode:10,primaryMask:1024,pct:42,v:3.71,batteryValid:true,level:.5,bass:.2,db:-25,clip:true,mic:true,roar:2,pixels:'00ff00'.repeat(31)})+'\\n').buffer)}})`);
  assert.equal($('battery').textContent,'42% · 3.71 В');assert.equal($('mic').textContent,'Перегруз микрофона');
  assert.equal($('led-15').getAttribute('fill'),'#00ff00');assert.equal($('modeName').textContent,'Сейчас: Светомузыка');assert.equal(w.document.querySelectorAll('#primaryModes input:checked').length,1);
- assert.deepEqual(errors,[]);dom.window.close();console.log('PASS: collapsed local font editor, 31-dot preview, 25 editable glyph pixels, no Ё, local save without BLE writes; UI modes, BLE auth/fragmentation, settings, reconnect, battery and clipping telemetry');
+ assert.deepEqual(errors,[]);dom.window.close();console.log('PASS: collapsed local font editor, 31 editable dots, 7-LED glyph width, legacy font migration, local save without BLE writes; UI modes, BLE auth/fragmentation, settings, reconnect, battery and clipping telemetry');
 })().catch(e=>{console.error(e);dom.window.close();process.exit(1)});
