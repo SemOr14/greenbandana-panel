@@ -15,6 +15,7 @@ using CustomFrames=std::array<std::array<std::array<Color,LEDS>,8>,3>;
 inline Color color(uint32_t v){return {uint8_t(v>>16),uint8_t(v>>8),uint8_t(v)};}
 inline Color blend(Color a,Color b,float t){return {uint8_t(mix(a.r,b.r,t)),uint8_t(mix(a.g,b.g,t)),uint8_t(mix(a.b,b.b,t))};}
 inline Color scale(Color a,float f){f=bound(f);return {uint8_t(a.r*f),uint8_t(a.g*f),uint8_t(a.b*f)};}
+inline float mouthRedBoost(float loudMix,Color loud){return 1.f+((loud.r>loud.g&&loud.r>loud.b)?.12f*bound(loudMix):0.f);}
 struct Config {
  int mode=0,lastMode=0,brightness=90,currentLimitMa=900;
  int micSensitivity=1,voiceFocus=0;
@@ -210,7 +211,8 @@ class Renderer {
      v=c.customSound==1?(.15f+.85f*a.level):c.customSound==2?(.15f+.85f*a.bass):1.f;break;
     }
    }
-   out[i]=scale(co,v*c.brightness/255.f);
+   float mouthBoost=c.mode==0?mouthRedBoost(loudMix,loud):1.f;
+   out[i]=scale(co,v*c.brightness/255.f*mouthBoost);
   }
   // Conservative LED-only current estimate (not a current sensor).
   float ma=LEDS;for(auto p:out)ma+=(p.r+p.g+p.b)*20.f/255;
