@@ -32,8 +32,8 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
 (async()=>{
  assert.equal(w.document.querySelectorAll('#matrix circle').length,31);
  assert.equal($('fontEditor').open,false);
- assert.match(w.document.querySelector('script[src^="font-editor.js"]').getAttribute('src'),/v=1\.3\.2/);
- assert.match(w.document.querySelector('link[rel="stylesheet"]').getAttribute('href'),/v=1\.3\.2/);
+ assert.match(w.document.querySelector('script[src^="font-editor.js"]').getAttribute('src'),/v=1\.3\.3/);
+ assert.match(w.document.querySelector('link[rel="stylesheet"]').getAttribute('href'),/v=1\.3\.3/);
  assert.equal($('fontEditor').closest('fieldset'),null,'font editor stays available without connecting');
  assert.equal($('fontEditor').nextElementSibling.id,'batteryControls','font editor is directly before battery and power');
  assert.equal($('batteryControls').disabled,true,'battery controls remain disabled until connection');
