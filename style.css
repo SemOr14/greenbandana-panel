@@ -19,6 +19,7 @@
 .fontActions{margin-top:12px}
 .fontImport{display:inline-flex;align-items:center;cursor:pointer;font-size:14px}
 .fontImport input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+.micPreset{display:grid;gap:9px;padding:14px;margin:0 0 18px;border:1px solid var(--edge);border-radius:14px;background:#101812}.micPreset>label{font-size:13px;color:var(--muted)}.micPreset select{width:100%;min-height:42px}.micPresetRow{display:flex;gap:9px;flex-wrap:wrap}.micPresetRow input{flex:1 1 150px;min-width:0;background:#101812;color:var(--text);border:1px solid #49614f;border-radius:9px;padding:10px}.micPresetRow button{flex:1 1 210px}.micPreset .note{margin:0}
 
 /* Keep the same vertical rhythm across cards, including fieldset boundaries. */
 main{display:flex;flex-direction:column;gap:14px}
