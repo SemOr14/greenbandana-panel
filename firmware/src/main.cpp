@@ -9,7 +9,7 @@
 #include <mbedtls/md.h>
 #include "engine.h"
 using namespace Mask;
-constexpr char FW_VERSION[]="1.2.3";
+constexpr char FW_VERSION[]="1.3.0";
 constexpr int PIN_BAT=1,PIN_BCLK=4,PIN_WS=5,PIN_SD=6,PIN_LED=7,PIN_NEXT=8,PIN_PREV=9;
 constexpr char SERVICE[]="97bcf501-696e-4f24-9b83-16bfa764b7e1";
 constexpr char RX_UUID[]="97bcf502-696e-4f24-9b83-16bfa764b7e1";
@@ -22,7 +22,7 @@ NimBLEServer* server=nullptr;NimBLECharacteristic* tx=nullptr;
 QueueHandle_t commands;volatile uint32_t connectionEpoch=0;volatile bool connected=false;
 uint32_t activeEpoch=0,pairUntil=0,otaPermitUntil=0,rebootAt=0,heartStart=0,lastTelemetry=0,lastBattery=0,lastAudioUpdate=0,lastClip=0;
 int testLed=-1;uint32_t testAt=0,pairFlashUntil=0;
-bool authorized=false,heartActive=false,micReady=false,firmwareSuccessAnimation=false;float battery=0;String salt,key,nonce,outgoing;uint32_t firmwareSuccessAt=0;
+bool authorized=false,heartActive=false,micReady=false,firmwareSuccessAnimation=false,modeLocked=false;int activeMicPreset=-1,lockedClickCount=0;uint32_t lockedClickAt=0;float battery=0;String salt,key,nonce,outgoing;uint32_t firmwareSuccessAt=0;
 volatile bool otaActive=false,otaError=false;volatile size_t otaWritten=0;size_t otaExpected=0;
 size_t outPos=0;String incoming;
 struct Command{uint32_t epoch;char text[513];};
@@ -43,6 +43,7 @@ bool pairOpen(){return pairUntil&&int32_t(pairUntil-millis())>0;}
 void emit(JsonDocument& d){String s;serializeJson(d,s);if(outgoing.length()+s.length()<14000){outgoing+=s;outgoing+='\n';}}
 void reply(int id,bool ok,const char* msg=""){StaticJsonDocument<256>d;d["id"]=id;d["type"]="ack";d["ok"]=ok;d["message"]=msg;emit(d);}
 void configJson(JsonObject o){
+ o["modeLocked"]=modeLocked;o["activeMicPreset"]=activeMicPreset;
 #define CFG_FIELD(n) o[#n]=cfg.n
  CFG_FIELD(primaryMask);CFG_FIELD(lastMode);CFG_FIELD(fireLow);CFG_FIELD(fireHigh);CFG_FIELD(fireIntensity);CFG_FIELD(fireCooling);CFG_FIELD(musicLow);CFG_FIELD(musicMid);CFG_FIELD(musicHigh);CFG_FIELD(musicGain);
  CFG_FIELD(mode);CFG_FIELD(brightness);CFG_FIELD(currentLimitMa);CFG_FIELD(base);CFG_FIELD(loud);CFG_FIELD(heart);CFG_FIELD(floorDb);CFG_FIELD(ceilingDb);CFG_FIELD(loudLevel);
@@ -142,6 +143,25 @@ void handleCommand(const char* text){
   StaticJsonDocument<320>r;r["id"]=id;r["type"]="customFrame";r["slot"]=slot;r["frame"]=frame;
   String value;char rgb[7];for(auto p:pixels){snprintf(rgb,sizeof(rgb),"%02x%02x%02x",p.r,p.g,p.b);value+=rgb;}r["pixels"]=value;emit(r);return;
  }
+ if(op=="micPresetGet"){
+  DynamicJsonDocument r(1536);r["id"]=id;r["type"]="micPresets";auto list=r.createNestedArray("presets");
+  for(int slot=0;slot<4;slot++){JsonObject p=list.createNestedObject();String raw=prefs.getString((String("mic")+slot).c_str(),"");if(raw.length()){DynamicJsonDocument saved(512);if(!deserializeJson(saved,raw)){p["name"]=saved["name"]|"";p["values"]=saved["values"];continue;}}p["name"]="";p.createNestedObject("values");}
+  r["active"]=activeMicPreset;emit(r);return;
+ }
+ if(op=="micPresetSave"){
+  int slot=d["slot"]|-1;String name=d["name"]|"";JsonObjectConst values=d["values"].as<JsonObjectConst>();
+  if(slot<0||slot>=4||name.length()==0||name.length()>64||values.isNull()){reply(id,false,"invalid_preset");return;}
+  Config original=cfg;const char* fields[]={"micSensitivity","voiceFocus","floorDb","ceilingDb","loudLevel","attackMs","releaseMs"};
+  for(const char* field:fields){if(!values.containsKey(field)||!setField(field,values[field])){cfg=original;reply(id,false,"invalid_preset");return;}}
+  bool valid=cfg.floorDb<cfg.ceilingDb;DynamicJsonDocument saved(512);saved["name"]=name;JsonObject v=saved.createNestedObject("values");for(const char* field:fields){if(strcmp(field,"micSensitivity")==0)v[field]=cfg.micSensitivity;else if(strcmp(field,"voiceFocus")==0)v[field]=cfg.voiceFocus;else if(strcmp(field,"floorDb")==0)v[field]=cfg.floorDb;else if(strcmp(field,"ceilingDb")==0)v[field]=cfg.ceilingDb;else if(strcmp(field,"loudLevel")==0)v[field]=cfg.loudLevel;else if(strcmp(field,"attackMs")==0)v[field]=cfg.attackMs;else v[field]=cfg.releaseMs;}
+  cfg=original;if(!valid){reply(id,false,"invalid_preset");return;}String raw;serializeJson(saved,raw);if(prefs.putString((String("mic")+slot).c_str(),raw)==0){reply(id,false,"storage_failed");return;}activeMicPreset=slot;prefs.putInt("micActive",slot);saveConfig();reply(id,true);return;
+ }
+ if(op=="micPresetApply"){
+  int slot=d["slot"]|-1;if(slot<0||slot>=4){reply(id,false,"invalid_preset");return;}String raw=prefs.getString((String("mic")+slot).c_str(),"");DynamicJsonDocument saved(512);
+  if(!raw.length()||deserializeJson(saved,raw)){reply(id,false,"empty_preset");return;}Config original=cfg;JsonObjectConst values=saved["values"].as<JsonObjectConst>();const char* fields[]={"micSensitivity","voiceFocus","floorDb","ceilingDb","loudLevel","attackMs","releaseMs"};
+  for(const char* field:fields)if(!values.containsKey(field)||!setField(field,values[field])){cfg=original;reply(id,false,"invalid_preset");return;}
+  if(cfg.floorDb>=cfg.ceilingDb){cfg=original;reply(id,false,"invalid_preset");return;}activeMicPreset=slot;prefs.putInt("micActive",slot);saveConfig();reply(id,true);return;
+ }
  if(op=="otaBegin"){
   int size=d["size"]|0;
   if(!otaPermitUntil||int32_t(otaPermitUntil-millis())<=0){reply(id,false,"physical_confirmation_required");return;}
@@ -167,6 +187,7 @@ void handleCommand(const char* text){
   int oldMode=cfg.mode;String name=d["name"]|"";bool ok=name!="lastMode"&&setField(name,d["value"]);
   if(cfg.mode!=oldMode)collapse.reset();reply(id,ok,ok?"":"invalid_setting");return;
  }
+ if(op=="modeLock"){modeLocked=d["locked"]|false;prefs.putBool("modeLock",modeLocked);lockedClickCount=0;reply(id,true);return;}
  if(op=="save"){saveConfig();reply(id,true);return;}
  if(op=="test"){int index=d["index"]|-1;if(index<0||index>=LEDS){reply(id,false,"invalid_index");return;}testLed=index;testAt=millis();reply(id,true);return;}
  if(op=="heart"){heartActive=true;heartStart=millis();reply(id,true);return;}
@@ -193,13 +214,16 @@ void buttons(uint32_t now){
  }else{
   if(nextButton.down&&!nextButton.longSent&&uint32_t(now-nextButton.pressed)>=700){heartActive=true;heartStart=now;nextButton.longSent=true;}
   if(prevButton.down&&!prevButton.longSent&&uint32_t(now-prevButton.pressed)>=700)prevButton.longSent=true;
-  if(oldNext&&!nextButton.down&&!nextButton.longSent){nextPrimary(cfg);collapse.reset();}
-  if(oldPrev&&!prevButton.down&&!prevButton.longSent){toggleCollapse(cfg);collapse.reset();}
+  if(oldNext&&!nextButton.down&&!nextButton.longSent){
+   if(modeLocked){if(!lockedClickCount||uint32_t(now-lockedClickAt)>1000)lockedClickCount=0;lockedClickAt=now;if(++lockedClickCount>=3){modeLocked=false;lockedClickCount=0;prefs.putBool("modeLock",false);pairFlashUntil=now+180;}}
+   else{nextPrimary(cfg);collapse.reset();}
+  }
+  if(oldPrev&&!prevButton.down&&!prevButton.longSent&&!modeLocked){toggleCollapse(cfg);collapse.reset();}
  }
  oldNext=nextButton.down;oldPrev=prevButton.down;
 }
 void telemetry(const std::array<Color,LEDS>& frame){
- DynamicJsonDocument d(1536);d["type"]="state";d["mode"]=cfg.mode;d["lastMode"]=cfg.lastMode;d["primaryMask"]=cfg.primaryMask;d["v"]=std::round(battery*100)/100;d["pct"]=int(batteryPercent(battery));d["batteryValid"]=battery>2.5&&battery<4.4;
+ DynamicJsonDocument d(1536);d["type"]="state";d["mode"]=cfg.mode;d["lastMode"]=cfg.lastMode;d["primaryMask"]=cfg.primaryMask;d["modeLocked"]=modeLocked;d["activeMicPreset"]=activeMicPreset;d["v"]=std::round(battery*100)/100;d["pct"]=int(batteryPercent(battery));d["batteryValid"]=battery>2.5&&battery<4.4;
  d["db"]=int(audio.db);d["peakDb"]=int(audio.peakDb);d["clip"]=lastClip!=0&&uint32_t(millis()-lastClip)<1500;d["mic"]=micReady&&audio.ok;
  d["level"]=std::round(audio.level*100)/100;d["bass"]=std::round(audio.bass*100)/100;d["voice"]=std::round(audio.voiceScore*100)/100;d["roar"]=int(collapse.state);d["pairing"]=pairOpen();
  auto b=d.createNestedArray("bands");for(float v:audio.display)b.add(int(v*100));
@@ -208,7 +232,7 @@ void telemetry(const std::array<Color,LEDS>& frame){
 void setup(){
  Serial.begin(115200);pinMode(PIN_NEXT,INPUT_PULLUP);pinMode(PIN_PREV,INPUT_PULLUP);
  strip.begin();strip.clear();strip.show();
- prefs.begin("bandana",false);salt=prefs.getString("salt","");key=prefs.getString("key","");
+ prefs.begin("bandana",false);salt=prefs.getString("salt","");key=prefs.getString("key","");modeLocked=prefs.getBool("modeLock",false);activeMicPreset=prefs.getInt("micActive",-1);if(activeMicPreset<0||activeMicPreset>=4)activeMicPreset=-1;
  firmwareSuccessAnimation=prefs.getBool("fwSuccess",false);if(firmwareSuccessAnimation)prefs.putBool("fwSuccess",false);
  renderer.setCustomFrames(&customFrames);
  for(int slot=0;slot<3;slot++)for(int frame=0;frame<8;frame++){char storageKey[12];snprintf(storageKey,sizeof(storageKey),"anim%d_%d",slot,frame);if(prefs.getBytesLength(storageKey)==LEDS*3)prefs.getBytes(storageKey,customFrames[slot][frame].data(),LEDS*3);}
