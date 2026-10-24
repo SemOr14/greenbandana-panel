@@ -1,10 +1,11 @@
 'use strict';
 const SERVICE='97bcf501-696e-4f24-9b83-16bfa764b7e1',RX='97bcf502-696e-4f24-9b83-16bfa764b7e1',TX='97bcf503-696e-4f24-9b83-16bfa764b7e1',OTA='97bcf504-696e-4f24-9b83-16bfa764b7e1';
-const $=id=>document.getElementById(id),enc=new TextEncoder(),dec=new TextDecoder();
+const $=id=>document.getElementById(id),enc=new TextEncoder();let dec=new TextDecoder();
 const names=['Рот','Полосы ↕','Эквалайзер','Волна','Басы','Смыкание','Цвет','Дыхание','Басовый импульс','Пламя','Светомузыка','Своя 1','Своя 2','Своя 3'];
 let targetFirmwareVersion='1.2.3';
 const firmwareInfo=document.createElement('p');firmwareInfo.id='firmwareVersionInfo';firmwareInfo.className='note';$('otaUpdate').before(firmwareInfo);
-let cfg={mode:0,lastMode:0,primaryMask:2015,customFps:4,customCount:4,customSound:0,fireLow:0xff1800,fireHigh:0xffdc40,fireIntensity:.8,fireCooling:.15,musicLow:0xff1800,musicMid:0x00ff50,musicHigh:0x2060ff,musicGain:1.5,brightness:90,currentLimitMa:900,base:0x00ff18,loud:0xff0000,heart:0xff1680,floorDb:-65,ceilingDb:-18,loudLevel:.82,bassLow:40,bassHigh:180,bassGain:2,roarLow:100,roarHigh:1800,roarDb:-14,roarBandRatio:.35,roarTriggerMs:200,roarHoldMs:15000,roarCloseMs:350,roarOpenMs:1800,changeStableMs:1000,changeDb:7,changeSpectrum:.2,attackMs:45,releaseMs:180,speed:1,batteryCorrection:1,micSensitivity:1,voiceFocus:0};
+let cfg={mode:0,lastMode:0,modeLocked:false,activeMicPreset:-1,primaryMask:2015,customFps:4,customCount:4,customSound:0,fireLow:0xff1800,fireHigh:0xffdc40,fireIntensity:.8,fireCooling:.15,musicLow:0xff1800,musicMid:0x00ff50,musicHigh:0x2060ff,musicGain:1.5,brightness:90,currentLimitMa:900,base:0x00ff18,loud:0xff0000,heart:0xff1680,floorDb:-65,ceilingDb:-18,loudLevel:.82,bassLow:40,bassHigh:180,bassGain:2,roarLow:100,roarHigh:1800,roarDb:-14,roarBandRatio:.35,roarTriggerMs:200,roarHoldMs:15000,roarCloseMs:350,roarOpenMs:1800,changeStableMs:1000,changeDb:7,changeSpectrum:.2,attackMs:45,releaseMs:180,speed:1,batteryCorrection:1,micSensitivity:1,voiceFocus:0};
+const micPresetFields=['micSensitivity','voiceFocus','floorDb','ceilingDb','loudLevel','attackMs','releaseMs'];let micPresets=Array.from({length:4},()=>({name:'',values:{}}));
 let device,rx,tx,otaChar,hello,ready=false,demo=false,buffer='',serial=1,queue=Promise.resolve(),dirty=false,heartUntil=0,demoRoarAt=-1,demoFrame=0;
 let customPixels=Array(31).fill(0),customLoaded=false,latestBatteryVoltage=NaN;
 let capacityMa=storageGet('greenbandana-capacity-mah');if(!Number.isInteger(capacityMa)||capacityMa<100||capacityMa>30000)capacityMa=2500;
@@ -63,7 +64,7 @@ function command(op,fields={}){
  const next=queue.then(task);queue=next.catch(()=>{});return next;
 }
 function incoming(event){
- buffer+=dec.decode(event.target.value);
+ buffer+=dec.decode(event.target.value,{stream:true});
  if(buffer.length>20000){buffer='';notice('Ошибка потока Bluetooth. Переподключись.');return;}
  let n;while((n=buffer.indexOf('\n'))>=0){let text=buffer.slice(0,n);buffer=buffer.slice(n+1);let p;try{p=JSON.parse(text);}catch{continue;}
   if(p.id&&waiters.has(p.id)){const w=waiters.get(p.id);waiters.delete(p.id);if(p.type==='ack'&&!p.ok)w.reject(Error(p.message));else w.resolve(p);}
@@ -71,7 +72,7 @@ function incoming(event){
  }
 }
 function disconnected(){
- ready=false;latestBatteryVoltage=NaN;resetPowerHistory();rx=tx=otaChar=null;buffer='';$('controls').disabled=true;$('batteryControls').disabled=true;$('login').hidden=true;$('disconnect').hidden=true;$('connect').hidden=false;
+ ready=false;latestBatteryVoltage=NaN;resetPowerHistory();rx=tx=otaChar=null;buffer='';dec=new TextDecoder();$('controls').disabled=true;$('batteryControls').disabled=true;$('login').hidden=true;$('disconnect').hidden=true;$('connect').hidden=false;
  for(const w of waiters.values())w.reject(Error('Соединение прервано'));waiters.clear();queue=Promise.resolve();status('Не подключено');$('hint').textContent='Эффекты продолжают работать в маске. Для настройки подключись снова.';
 }
 async function connect(){
@@ -104,7 +105,7 @@ async function getHello(){
  $('password').autocomplete=hello.configured?'current-password':'new-password';status('Нужен пароль');
 }
 async function authenticated(){
- const p=await command('config');Object.assign(cfg,p.config);ready=true;latestBatteryVoltage=NaN;dirty=false;buildControls();$('currentLimitStatus').textContent='';$('batteryCalibrationStatus').textContent='';$('controls').disabled=false;$('batteryControls').disabled=false;$('login').hidden=true;$('password').value='';
+ const p=await command('config');Object.assign(cfg,p.config);try{const saved=await command('micPresetGet');if(Array.isArray(saved.presets))micPresets=saved.presets.map(x=>({name:String(x.name||''),values:x.values||{}}));}catch{micPresets=Array.from({length:4},()=>({name:'',values:{}}));}ready=true;latestBatteryVoltage=NaN;dirty=false;buildControls();$('currentLimitStatus').textContent='';$('batteryCalibrationStatus').textContent='';$('controls').disabled=false;$('batteryControls').disabled=false;$('login').hidden=true;$('password').value='';
  status('Маска подключена',true);$('hint').textContent='Управление по BLE · сеть и VPN остаются прежними';$('dirty').textContent='Настройки загружены из маски';
   refreshFirmwareInfo();
  loadCustomFrame().catch(e=>notice('Редактор анимации: '+e.message));
@@ -192,7 +193,7 @@ function buildControls(){
  sensSelect.value=cfg.micSensitivity;sensOut.value=sensSelect.options[sensSelect.selectedIndex].text;sens.append(sensOut,sensSelect);
  sensSelect.onchange=async()=>{if(await setting('micSensitivity',+sensSelect.value))sensOut.value=sensSelect.options[sensSelect.selectedIndex].text;else sensSelect.value=cfg.micSensitivity;};$('quickMicSensitivity').append(sens);
  $('currentLimitInput').value=cfg.currentLimitMa;
- updateModes();buildPrimaryModes();
+ updateModes();buildPrimaryModes();bindMicPresets();
 }
 $('currentLimitInput').onchange=async()=>{
  const input=$('currentLimitInput'),value=Number(input.value),message=$('currentLimitStatus');
@@ -225,7 +226,31 @@ function updateModes(){
  $('modeName').textContent='Сейчас: '+names[cfg.mode];
  $('toggleCollapse').textContent=cfg.mode===5?'Выйти из смыкания':'Включить смыкание';
  $('returnMode').textContent='Возврат из смыкания: '+names[cfg.lastMode];
+ $('modeLock').textContent=cfg.modeLocked?'Снять закрепление':'Закрепить режим';$('modeLockStatus').textContent=cfg.modeLocked?'Режим закреплён: кнопки его не меняют. Сними закрепление здесь или быстро нажми кнопку 1 три раза.':'Кнопки переключают режимы.';
 }
+function refreshMicPresetSelect(){
+ const select=$('micPresetSelect');if(!select)return;const selected=select.value;select.replaceChildren();const blank=document.createElement('option');blank.value='-1';blank.textContent='Выбери или создай пресет';select.append(blank);
+ micPresets.forEach((preset,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=preset.name||`Слот ${i+1} · пустой`;select.append(option);});
+ select.value=Number.isInteger(cfg.activeMicPreset)&&cfg.activeMicPreset>=0&&micPresets[cfg.activeMicPreset]?.name?String(cfg.activeMicPreset):selected!=='-1'&&micPresets[+selected]?.name?selected:'-1';
+ if(select.value==='-1'&&Number.isInteger(cfg.activeMicPreset)&&micPresets[cfg.activeMicPreset]?.name)select.value=String(cfg.activeMicPreset);
+ $('micPresetName').value=select.value==='-1'?'':micPresets[+select.value]?.name||'';
+}
+function syncMicControls(){
+ for(const name of micPresetFields){const input=$('setting-'+name);if(input){input.value=cfg[name];const output=input.closest('label')?.querySelector('output');if(output){const unit={floorDb:' dBFS',ceilingDb:' dBFS',attackMs:' мс',releaseMs:' мс'}[name]||'';output.value=name==='micSensitivity'?['','×1 · без снижения','×½','×⅓','×¼','×⅕'][cfg[name]]:name==='voiceFocus'?(cfg[name]?'Включён · эвристика':'Выключен'):cfg[name]+unit;}}}
+}
+async function applyMicPreset(slot){
+ const preset=micPresets[slot];if(!preset?.name){$('micPresetStatus').textContent='Сначала сохрани настройки в этот слот.';return;}
+ try{if(!demo)await command('micPresetApply',{slot});Object.assign(cfg,preset.values);cfg.activeMicPreset=slot;syncMicControls();refreshMicPresetSelect();dirty=false;$('dirty').textContent='Пресет применён и сохранён в бандане';$('micPresetStatus').textContent=`Применён пресет «${preset.name}».`;updateModes();}
+ catch(e){$('micPresetStatus').textContent='Не удалось применить пресет: '+e.message;}
+}
+async function saveMicPreset(){
+ const slot=Number($('micPresetSelect').value),name=$('micPresetName').value.trim();if(!Number.isInteger(slot)||slot<0||slot>=4){$('micPresetStatus').textContent='Сначала выбери слот пресета.';return;}if(!name||name.length>24){$('micPresetStatus').textContent='Введи название длиной от 1 до 24 символов.';return;}if(sliders.size){$('micPresetStatus').textContent='Подожди завершения ползунков и нажми сохранение ещё раз.';return;}
+ const values=Object.fromEntries(micPresetFields.map(field=>[field,cfg[field]]));
+ try{if(!demo){await command('micPresetSave',{slot,name,values});await command('save');}micPresets[slot]={name,values};cfg.activeMicPreset=slot;dirty=false;$('dirty').textContent='Пресет сохранён в бандане';refreshMicPresetSelect();$('micPresetStatus').textContent=`«${name}» сохранён в памяти банданы.`;}
+ catch(e){$('micPresetStatus').textContent='Не удалось сохранить пресет: '+e.message;}
+}
+function bindMicPresets(){refreshMicPresetSelect();$('micPresetSelect').onchange=()=>{const slot=Number($('micPresetSelect').value);if(slot>=0){$('micPresetName').value=micPresets[slot]?.name||'';if(micPresets[slot]?.name)applyMicPreset(slot);}};$('micPresetSave').onclick=saveMicPreset;}
+$('modeLock').onclick=async()=>{try{const locked=!cfg.modeLocked;if(!demo)await command('modeLock',{locked});cfg.modeLocked=locked;updateModes();$('dirty').textContent=locked?'Режим закреплён':'Закрепление снято';}catch(e){notice(e.message);}};
 function buildPrimaryModes(){
  $('primaryModes').replaceChildren();
  names.forEach((name,i)=>{
@@ -270,6 +295,8 @@ $('customSave').onclick=async()=>{if(!ready||!customLoaded)return;const button=$
 function showState(s){
  if(ready&&s.batteryValid&&Number.isFinite(s.v))latestBatteryVoltage=s.v;
  if(Number.isInteger(s.lastMode))cfg.lastMode=s.lastMode;
+ if(typeof s.modeLocked==='boolean'&&s.modeLocked!==cfg.modeLocked){cfg.modeLocked=s.modeLocked;updateModes();}
+ if(Number.isInteger(s.activeMicPreset)&&s.activeMicPreset!==cfg.activeMicPreset){cfg.activeMicPreset=s.activeMicPreset;refreshMicPresetSelect();}
  if(Number.isInteger(s.primaryMask)&&s.primaryMask!==cfg.primaryMask){cfg.primaryMask=s.primaryMask;buildPrimaryModes();}
  cfg.mode=s.mode;updateModes();
  $('battery').textContent=s.batteryValid?`${s.pct}% · ${s.v.toFixed(2)} В`:'АКБ: нет измерения';$('battery').classList.toggle('low',s.batteryValid&&s.pct<15);
