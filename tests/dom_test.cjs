@@ -36,8 +36,11 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
  assert.equal($('fontEditor').closest('fieldset'),null,'font editor stays available without connecting');
  assert($('otaUpdate').compareDocumentPosition($('fontEditor'))&w.Node.DOCUMENT_POSITION_FOLLOWING,'font editor stays at the bottom after firmware update');
  assert.equal($('modePanel').nextElementSibling.id,'quickSettings','always-visible quick controls follow the mode panel');
- assert.equal($('quickSettings').nextElementSibling.id,'primaryModeSettings','mode selection comes after the non-collapsible panels');
+ assert.equal($('quickSettings').nextElementSibling.querySelector('summary').textContent,'Микрофон и речь','microphone settings are the first collapsible item');
+ assert.equal($('quickSettings').nextElementSibling.nextElementSibling.id,'primaryModeSettings','mode cycle selection follows the microphone panel');
  assert.equal($('primaryModeSettings').open,false);
+ assert.equal($('firmwareSection').nextElementSibling.querySelector('summary').textContent,'Аккумулятор и питание','battery and power are the last collapsible settings item');
+ assert.equal($('firmwareSection').open,false,'firmware update is a collapsed settings item');
  assert.equal($('quickSettings').querySelector('#setting-brightness')!==null,true);
  assert.equal($('quickSettings').querySelector('#setting-speed')!==null,true);
  assert.equal($('quickSettings').querySelector('#setting-micSensitivity')!==null,true);
@@ -45,7 +48,7 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
  assert.equal(w.document.querySelectorAll('#fontMatrix circle[data-cell]').length,31);
  assert.equal($('fontCharInput').type,'text');
  assert.equal(w.document.querySelectorAll('#fontEditor select').length,0,'character selection uses text input, not a dropdown');
- assert.equal($('firmwareSection').open,false,'firmware update is a collapsed settings item');
+ assert.equal($('fontEditor').previousElementSibling.id,'controls','font editor follows all device settings at the bottom of the page');
  const input=$('fontCharInput'),matrix=$('fontMatrix');
  const aPattern=Array.from(matrix.querySelectorAll('circle[data-cell]'),node=>node.getAttribute('fill')).join(',');
  input.value='Б';input.dispatchEvent(new w.Event('input',{bubbles:true}));
