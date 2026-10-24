@@ -31,9 +31,18 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
 (async()=>{
  assert.equal(w.document.querySelectorAll('#matrix circle').length,31);
  assert.equal($('fontEditor').open,false);
+ assert.equal($('fontEditor').closest('fieldset'),null,'font editor stays available without connecting');
+ assert($('fontEditor').compareDocumentPosition($('otaUpdate'))&w.Node.DOCUMENT_POSITION_FOLLOWING,'firmware update stays after the font editor');
  assert.equal(w.document.querySelectorAll('#fontMatrix circle').length,31);
  assert.equal(w.document.querySelectorAll('#fontMatrix circle[data-cell]').length,25);
- assert(!Array.from($('fontChar').options).some(option=>option.value==='Ё'));
+ assert.equal($('fontCharInput').type,'text');
+ assert.equal(w.document.querySelectorAll('#fontEditor select').length,0,'character selection uses text input, not a dropdown');
+ const input=$('fontCharInput'),matrix=$('fontMatrix');
+ const aPattern=Array.from(matrix.querySelectorAll('circle[data-cell]'),node=>node.getAttribute('fill')).join(',');
+ input.value='Б';input.dispatchEvent(new w.Event('input',{bubbles:true}));
+ const bPattern=Array.from(matrix.querySelectorAll('circle[data-cell]'),node=>node.getAttribute('fill')).join(',');assert.notEqual(aPattern,bPattern,'typing a symbol changes the editable glyph');
+ input.value='Ё';input.dispatchEvent(new w.Event('input',{bubbles:true}));assert.match($('fontStatus').textContent,/нет в наборе/);
+ input.value='А';input.dispatchEvent(new w.Event('input',{bubbles:true}));
  const fontPixel=$('fontMatrix').querySelector('circle[data-cell="0"]'),fontBefore=fontPixel.getAttribute('fill');
  fontPixel.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));assert.notEqual(fontPixel.getAttribute('fill'),fontBefore);
  $('fontSave').click();assert(JSON.parse(w.localStorage.getItem('greenbandana-font-v1')).glyphs.А);

@@ -47,17 +47,7 @@
  }
  function readSaved(){try{return cleanFont(JSON.parse(localStorage.getItem(STORE_KEY))?.glyphs);}catch{return {...defaults};}}
  let glyphs=readSaved(), selectedChar=uniqueChars[0];
- const select=$('fontChar');
- for(const [groupName,text] of groups){
-  const group=document.createElement('optgroup');group.label=groupName;
-  for(const ch of Array.from(text)){
-   const option=document.createElement('option');option.value=ch;option.textContent=labels[ch]||ch;group.append(option);
-  }
-  select.append(group);
- }
- // Remove repeated punctuation from the select while retaining the groups.
- const seen=new Set();for(const option of select.querySelectorAll('option')){if(seen.has(option.value))option.remove();else seen.add(option.value);}
- const svg=$('fontMatrix'), dotByLed=new Map();
+ const charInput=$('fontCharInput'), svg=$('fontMatrix'), dotByLed=new Map();
  const selectedCellByLed=new Map();
  rowPoints.forEach((rowPoints,row)=>rowPoints.forEach((p,col)=>selectedCellByLed.set(p.index,row*5+col)));
  positions.forEach(p=>{
@@ -72,11 +62,13 @@
   const bits=glyphs[selectedChar]||defaults[selectedChar];
   for(const p of positions){const circle=dotByLed.get(p.index),cell=selectedCellByLed.get(p.index);circle.setAttribute('fill',cell!==undefined&&bits[cell]==='1'?'#8ff0a0':'#17221b');circle.classList.toggle('fontDotOn',cell!==undefined&&bits[cell]==='1');}
   const width=widthOf(bits);$('fontWidth').textContent=width?`Ширина: ${width} px`:'Пустой знак';
-  $('fontStatus').textContent='Изменения применяются только к предпросмотру. Сохрани шрифт в браузере, чтобы он остался на этом устройстве.';
  }
- function toggleCell(cell){const a=glyphs[selectedChar].split('');a[cell]=a[cell]==='1'?'0':'1';glyphs[selectedChar]=a.join('');paint();}
- select.value=selectedChar;select.addEventListener('change',()=>{selectedChar=select.value;paint();});paint();
- $('fontResetGlyph').addEventListener('click',()=>{glyphs[selectedChar]=defaults[selectedChar];paint();});
+ function setSymbol(ch){selectedChar=ch;charInput.value=ch===' '?'':ch;charInput.placeholder=ch===' '?'Пробел':'Введите знак';paint();$('fontStatus').textContent=`Выбран символ «${ch===' '?'Пробел':ch}». Редактирование не затрагивает прошивку.`;}
+ function toggleCell(cell){const a=glyphs[selectedChar].split('');a[cell]=a[cell]==='1'?'0':'1';glyphs[selectedChar]=a.join('');paint();$('fontStatus').textContent='Знак изменён в редакторе. Нажми «Сохранить шрифт в браузере», чтобы закрепить.';}
+ charInput.addEventListener('input',()=>{const raw=charInput.value;if(!raw)return;const ch=Array.from(raw.toLocaleUpperCase('ru-RU'))[0];if(!uniqueChars.includes(ch)){$('fontStatus').textContent='Этого символа нет в наборе. Можно редактировать русские и английские заглавные буквы, цифры и знаки.';return;}setSymbol(ch);});
+ $('fontSpace').addEventListener('click',()=>setSymbol(' '));
+ charInput.value=selectedChar;paint();
+ $('fontResetGlyph').addEventListener('click',()=>{glyphs[selectedChar]=defaults[selectedChar];paint();$('fontStatus').textContent='Символ восстановлен. Сохрани шрифт в браузере, чтобы закрепить.';});
  $('fontResetAll').addEventListener('click',()=>{glyphs={...defaults};paint();$('fontStatus').textContent='Исходный шрифт восстановлен в редакторе. Нажми «Сохранить шрифт в браузере», чтобы закрепить.';});
  $('fontSave').addEventListener('click',()=>{try{localStorage.setItem(STORE_KEY,JSON.stringify({version:1,glyphs}));$('fontStatus').textContent='Сохранено в этом браузере. В маску ничего не отправлялось.';}catch{$('fontStatus').textContent='Не удалось сохранить в браузере. Попробуй экспортировать JSON.';}});
  $('fontExport').addEventListener('click',()=>{const blob=new Blob([JSON.stringify({version:1,glyphs},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='greenbandana-font.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);});

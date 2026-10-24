@@ -13,7 +13,8 @@
 #fontMatrix .fontDot:focus{stroke:#fff;stroke-width:1.5}
 .fontToolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0}
 .fontToolbar label{font-size:13px;color:var(--muted)}
-.fontToolbar select,.fontImport{min-height:42px;padding:8px 12px;border:1px solid #425647;border-radius:10px;background:#101812;color:var(--text)}
+.fontToolbar select,.fontToolbar input[type=text],.fontImport{min-height:42px;padding:8px 12px;border:1px solid #425647;border-radius:10px;background:#101812;color:var(--text)}
+.fontToolbar input[type=text]{width:7ch}
 .fontWidth{font-size:13px;color:var(--green);min-width:90px}
 .fontActions{margin-top:12px}
 .fontImport{display:inline-flex;align-items:center;cursor:pointer;font-size:14px}
