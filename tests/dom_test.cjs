@@ -40,6 +40,7 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
  assert.equal($('quickSettings').nextElementSibling.nextElementSibling.id,'primaryModeSettings','mode cycle selection follows the microphone panel');
  assert.equal($('primaryModeSettings').open,false);
  assert.equal($('firmwareSection').nextElementSibling.querySelector('summary').textContent,'Аккумулятор и питание','battery and power are the last collapsible settings item');
+ assert.equal(w.document.querySelectorAll('#batteryCapacity').length,1,'battery controls appear only once');
  assert.equal($('firmwareSection').open,false,'firmware update is a collapsed settings item');
  assert.equal($('quickSettings').querySelector('#setting-brightness')!==null,true);
  assert.equal($('quickSettings').querySelector('#setting-speed')!==null,true);
