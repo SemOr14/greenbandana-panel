@@ -34,12 +34,13 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
  assert.equal($('fontEditor').open,false);
  assert.match(w.document.querySelector('script[src^="font-editor.js"]').getAttribute('src'),/v=1\.3\.1/);
  assert.equal($('fontEditor').closest('fieldset'),null,'font editor stays available without connecting');
- assert($('otaUpdate').compareDocumentPosition($('fontEditor'))&w.Node.DOCUMENT_POSITION_FOLLOWING,'font editor stays at the bottom after firmware update');
+ assert.equal($('fontEditor').nextElementSibling.id,'batteryControls','font editor is directly before battery and power');
+ assert.equal($('batteryControls').disabled,true,'battery controls remain disabled until connection');
  assert.equal($('modePanel').nextElementSibling.id,'quickSettings','always-visible quick controls follow the mode panel');
  assert.equal($('quickSettings').nextElementSibling.querySelector('summary').textContent,'Микрофон и речь','microphone settings are the first collapsible item');
  assert.equal($('quickSettings').nextElementSibling.nextElementSibling.id,'primaryModeSettings','mode cycle selection follows the microphone panel');
  assert.equal($('primaryModeSettings').open,false);
- assert.equal($('firmwareSection').nextElementSibling.querySelector('summary').textContent,'Аккумулятор и питание','battery and power are the last collapsible settings item');
+ assert.equal($('batteryControls').querySelector('summary').textContent,'Аккумулятор и питание','battery and power are the final settings panel');
  assert.equal(w.document.querySelectorAll('#batteryCapacity').length,1,'battery controls appear only once');
  assert.equal($('firmwareSection').open,false,'firmware update is a collapsed settings item');
  assert.equal($('quickSettings').querySelector('#setting-brightness')!==null,true);
@@ -64,7 +65,7 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
  $('fontSave').click();assert(JSON.parse(w.localStorage.getItem('greenbandana-font-v1')).glyphs.А);
  assert.equal(JSON.parse(w.localStorage.getItem('greenbandana-font-v1')).glyphs.А.length,31,'legacy 5x5 font is migrated to all 31 LEDs');
  assert.equal(fragments,0,'font editing must not send BLE commands');
- $('demo').click();assert(!$('controls').disabled);
+ $('demo').click();assert(!$('controls').disabled);assert(!$('batteryControls').disabled);
  for(let i=0;i<11;i++){await run(`setting('mode',${i})`);assert.equal(run('cfg.mode'),i);}
  // Choose a two-mode primary cycle in the phone panel and test both hardware-equivalent controls.
  await run("setting('primaryMask',(1<<9)|(1<<10))");
@@ -84,13 +85,13 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
  assert.equal(await run(`proof('${expected}','abc123')`),crypto.createHmac('sha256',Buffer.from(expected,'hex')).update('abc123').digest('hex'));
  await run('connect()');assert(!$('login').hidden);
  $('password').value=pass;$('authForm').requestSubmit($('authForm').querySelector('button'));
- await until(()=>run('ready'));await until(()=>run('customLoaded'));assert.equal(server.key,expected);assert(server.configured);assert(!$('controls').disabled);assert.match($('firmwareVersionInfo').textContent,/доступно обновление до 1\.2\.3/);assert(!$('otaUpdate').disabled);
+ await until(()=>run('ready'));await until(()=>run('customLoaded'));assert.equal(server.key,expected);assert(server.configured);assert(!$('controls').disabled);assert(!$('batteryControls').disabled);assert.match($('firmwareVersionInfo').textContent,/доступно обновление до 1\.2\.3/);assert(!$('otaUpdate').disabled);
  await run("setting('mode',5)");assert.equal(server.settings.mode,5);await run("setting('primaryMask',1<<10)");assert.equal(server.settings.primaryMask,1<<10);
  $('setting-voiceFocus').value='1';$('setting-voiceFocus').dispatchEvent(new w.Event('change'));await until(()=>server.settings.voiceFocus===1);
  $('setting-micSensitivity').value='5';$('setting-micSensitivity').dispatchEvent(new w.Event('change'));await until(()=>server.settings.micSensitivity===5);
  $('save').click();await until(()=>server.saved);
  // Read/write fragmentation and reconnect with remembered access, no second password entry.
- assert(fragments>10);device.gatt.disconnect();assert($('controls').disabled);
+ assert(fragments>10);device.gatt.disconnect();assert($('controls').disabled);assert($('batteryControls').disabled);
  await run('connect()');assert(run('ready'));assert($('login').hidden);await until(()=>run('customLoaded'));
  run(`incoming({target:{value:new DataView(new TextEncoder().encode(JSON.stringify({type:'state',mode:10,lastMode:10,primaryMask:1024,pct:42,v:3.71,batteryValid:true,level:.5,bass:.2,db:-25,clip:true,mic:true,roar:2,pixels:'00ff00'.repeat(31)})+'\\n').buffer)}})`);
  assert.equal($('battery').textContent,'42% · 3.71 В');assert.equal($('mic').textContent,'Перегруз микрофона');
