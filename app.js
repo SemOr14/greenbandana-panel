@@ -71,7 +71,7 @@ function incoming(event){
  }
 }
 function disconnected(){
- ready=false;latestBatteryVoltage=NaN;resetPowerHistory();rx=tx=otaChar=null;buffer='';$('controls').disabled=true;$('login').hidden=true;$('disconnect').hidden=true;$('connect').hidden=false;
+ ready=false;latestBatteryVoltage=NaN;resetPowerHistory();rx=tx=otaChar=null;buffer='';$('controls').disabled=true;$('batteryControls').disabled=true;$('login').hidden=true;$('disconnect').hidden=true;$('connect').hidden=false;
  for(const w of waiters.values())w.reject(Error('Соединение прервано'));waiters.clear();queue=Promise.resolve();status('Не подключено');$('hint').textContent='Эффекты продолжают работать в маске. Для настройки подключись снова.';
 }
 async function connect(){
@@ -93,7 +93,7 @@ async function connect(){
  finally{$('connect').disabled=false;}
 }
 async function getHello(){
- hello=await command('hello');await refreshFirmwareInfo();ready=false;$('controls').disabled=true;
+ hello=await command('hello');await refreshFirmwareInfo();ready=false;$('controls').disabled=true;$('batteryControls').disabled=true;
  if(hello.unlocked){if(hello.rememberKey&&$('remember').checked)storageSet(cacheKey(),{salt:hello.salt,key:hello.rememberKey});await authenticated();return;}
  const saved=storageGet(cacheKey());
  if(hello.configured&&saved?.salt===hello.salt&&saved?.key){try{await command('auth',{proof:await proof(saved.key,hello.nonce)});await authenticated();return;}catch{forget();hello=await command('hello');}}
@@ -104,7 +104,7 @@ async function getHello(){
  $('password').autocomplete=hello.configured?'current-password':'new-password';status('Нужен пароль');
 }
 async function authenticated(){
- const p=await command('config');Object.assign(cfg,p.config);ready=true;latestBatteryVoltage=NaN;dirty=false;buildControls();$('currentLimitStatus').textContent='';$('batteryCalibrationStatus').textContent='';$('controls').disabled=false;$('login').hidden=true;$('password').value='';
+ const p=await command('config');Object.assign(cfg,p.config);ready=true;latestBatteryVoltage=NaN;dirty=false;buildControls();$('currentLimitStatus').textContent='';$('batteryCalibrationStatus').textContent='';$('controls').disabled=false;$('batteryControls').disabled=false;$('login').hidden=true;$('password').value='';
  status('Маска подключена',true);$('hint').textContent='Управление по BLE · сеть и VPN остаются прежними';$('dirty').textContent='Настройки загружены из маски';
   refreshFirmwareInfo();
  loadCustomFrame().catch(e=>notice('Редактор анимации: '+e.message));
@@ -295,7 +295,7 @@ $('demo').onclick=()=>{
  if(demo){demo=false;cancelAnimationFrame(demoFrame);$('demo').textContent='Демо';disconnected();return;}
  if(device?.gatt.connected){device.gatt.disconnect();setTimeout(startDemo,100);}else startDemo();
 };
-function startDemo(){resetPowerHistory();demo=true;ready=false;$('login').hidden=true;$('controls').disabled=false;$('demo').textContent='Выйти из демо';status('Демо · без подключения');$('hint').textContent='Анимация интерфейса. Датчики и заряд смоделированы.';notice('');buildControls();demoFrame=requestAnimationFrame(demoLoop);}
+function startDemo(){resetPowerHistory();demo=true;ready=false;$('login').hidden=true;$('controls').disabled=false;$('batteryControls').disabled=false;$('demo').textContent='Выйти из демо';status('Демо · без подключения');$('hint').textContent='Анимация интерфейса. Датчики и заряд смоделированы.';notice('');buildControls();demoFrame=requestAnimationFrame(demoLoop);}
 if('serviceWorker'in navigator&&isSecureContext)navigator.serviceWorker.register('./sw.js').catch(()=>{});
 buildControls();
 if(!isSecureContext)$('hint').textContent='Для подключения размести папку web на HTTPS. Демо работает и локально.';
