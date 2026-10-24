@@ -4,3 +4,17 @@
 #customMatrix{width:100%;height:auto;max-height:310px;background:#080d0a;border-radius:15px;padding:10px;margin:12px 0;touch-action:manipulation}#customMatrix .led{stroke:#667c69;stroke-width:.7;cursor:pointer}#customMatrix .led:hover{stroke:#fff;stroke-width:1.2}select{background:#101812;color:var(--text);border:1px solid var(--edge);border-radius:8px;padding:8px}
 .rangeRow,.calibrationRow{display:flex;align-items:center;gap:10px}.rangeRow input[type=range]{flex:1;min-width:0;width:0}.rangeRow input[type=number],.calibrationRow input[type=number]{width:92px;max-width:100%;background:#101812;color:var(--text);border:1px solid #49614f;border-radius:9px;padding:8px;font-variant-numeric:tabular-nums}.calibrationRow{margin-top:8px;flex-wrap:wrap}.calibrationRow input[type=number]{width:160px}.calibrationRow button{flex:0 1 auto}#batteryCalibrationStatus,#currentLimitStatus{min-height:1.5em;margin-bottom:0}
 .headerReadouts{display:flex;align-items:center;gap:8px}.powerUse{font-variant-numeric:tabular-nums}.powerUse small{display:block;color:var(--muted);font-size:11px}#batteryCapacityStatus{min-height:1.5em;margin-bottom:0}@media(max-width:620px){header{flex-wrap:wrap}.headerReadouts{width:100%;justify-content:space-between}.powerUse{flex:1}}
+
+/* Local-only font editor, independent from the current mask firmware. */
+#fontMatrix{display:block;width:100%;max-height:310px;margin:12px 0;background:#080d0a;border-radius:15px;padding:12px;touch-action:manipulation}
+#fontMatrix .fontDot{stroke:#314238;stroke-width:.7;cursor:pointer;outline:none}
+#fontMatrix .fontDotOn{stroke:#c7ffd0;stroke-width:1}
+#fontMatrix .fontDotLocked{opacity:.38;cursor:default}
+#fontMatrix .fontDot:focus{stroke:#fff;stroke-width:1.5}
+.fontToolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0}
+.fontToolbar label{font-size:13px;color:var(--muted)}
+.fontToolbar select,.fontImport{min-height:42px;padding:8px 12px;border:1px solid #425647;border-radius:10px;background:#101812;color:var(--text)}
+.fontWidth{font-size:13px;color:var(--green);min-width:90px}
+.fontActions{margin-top:12px}
+.fontImport{display:inline-flex;align-items:center;cursor:pointer;font-size:14px}
+.fontImport input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}

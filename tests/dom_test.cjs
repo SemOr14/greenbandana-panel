@@ -26,9 +26,18 @@ const tx=new Characteristic(),rx=new Characteristic();
 class Device extends w.EventTarget{constructor(){super();this.id='test-mask';this.gatt={connected:false,connect:async()=>{this.gatt.connected=true;return{getPrimaryService:async()=>({getCharacteristic:async id=>id.includes('f502')?rx:tx})};},disconnect:()=>{this.gatt.connected=false;this.dispatchEvent(new w.Event('gattserverdisconnected'));}};}}
 const device=new Device();Object.defineProperty(w.navigator,'bluetooth',{value:{requestDevice:async()=>device}});
 run(fs.readFileSync(path.join(root,'app.js'),'utf8'));
+run(fs.readFileSync(path.join(root,'font-editor.js'),'utf8'));
 async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;await sleep(10);}throw Error('Timeout');}
 (async()=>{
  assert.equal(w.document.querySelectorAll('#matrix circle').length,31);
+ assert.equal($('fontEditor').open,false);
+ assert.equal(w.document.querySelectorAll('#fontMatrix circle').length,31);
+ assert.equal(w.document.querySelectorAll('#fontMatrix circle[data-cell]').length,25);
+ assert(!Array.from($('fontChar').options).some(option=>option.value==='Ё'));
+ const fontPixel=$('fontMatrix').querySelector('circle[data-cell="0"]'),fontBefore=fontPixel.getAttribute('fill');
+ fontPixel.dispatchEvent(new w.MouseEvent('click',{bubbles:true}));assert.notEqual(fontPixel.getAttribute('fill'),fontBefore);
+ $('fontSave').click();assert(JSON.parse(w.localStorage.getItem('greenbandana-font-v1')).glyphs.А);
+ assert.equal(fragments,0,'font editing must not send BLE commands');
  $('demo').click();assert(!$('controls').disabled);
  for(let i=0;i<11;i++){await run(`setting('mode',${i})`);assert.equal(run('cfg.mode'),i);}
  // Choose a two-mode primary cycle in the phone panel and test both hardware-equivalent controls.
@@ -60,5 +69,5 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
  run(`incoming({target:{value:new DataView(new TextEncoder().encode(JSON.stringify({type:'state',mode:10,lastMode:10,primaryMask:1024,pct:42,v:3.71,batteryValid:true,level:.5,bass:.2,db:-25,clip:true,mic:true,roar:2,pixels:'00ff00'.repeat(31)})+'\\n').buffer)}})`);
  assert.equal($('battery').textContent,'42% · 3.71 В');assert.equal($('mic').textContent,'Перегруз микрофона');
  assert.equal($('led-15').getAttribute('fill'),'#00ff00');assert.equal($('modeName').textContent,'Сейчас: Светомузыка');assert.equal(w.document.querySelectorAll('#primaryModes input:checked').length,1);
- assert.deepEqual(errors,[]);dom.window.close();console.log('PASS: UI initialization, eleven modes, PBKDF2/HMAC vectors, first enrollment, fragmented BLE exchange, speech focus and sensitivity settings, save, remembered reconnect, battery and clipping telemetry');
+ assert.deepEqual(errors,[]);dom.window.close();console.log('PASS: collapsed local font editor, 31-dot preview, 25 editable glyph pixels, no Ё, local save without BLE writes; UI modes, BLE auth/fragmentation, settings, reconnect, battery and clipping telemetry');
 })().catch(e=>{console.error(e);dom.window.close();process.exit(1)});
