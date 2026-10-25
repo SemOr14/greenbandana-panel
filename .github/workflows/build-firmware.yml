@@ -8,6 +8,9 @@ on:
     paths:
       - 'firmware/**'
       - '.github/workflows/build-firmware.yml'
+concurrency:
+  group: firmware-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: write
 jobs:
