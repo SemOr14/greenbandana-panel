@@ -3,7 +3,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 const root=path.resolve(__dirname,'..'),errors=[];
 const dom=new JSDOM(fs.readFileSync(path.join(root,'index.html'),'utf8'),{url:'https://bandana.test/',runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:new VirtualConsole().on('jsdomError',e=>errors.push(e.message))});
 const w=dom.window;w.TextEncoder=TextEncoder;w.TextDecoder=TextDecoder;w.isSecureContext=true;Object.defineProperty(w,'crypto',{value:crypto.webcrypto});
- w.fetch=async()=>({ok:true,json:async()=>({version:'1.4.0'})});
+ w.fetch=async()=>({ok:true,json:async()=>({version:'1.4.1'})});
 const ctx=dom.getInternalVMContext(),run=s=>vm.runInContext(s,ctx),$=id=>w.document.getElementById(id),sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const server={configured:false,salt:'00112233445566778899aabbccddeeff',nonce:'abc123',key:'',settings:{},saved:false,presets:Array.from({length:4},()=>({name:'',values:{}}))};
 let wire=[],fragments=0;
@@ -35,7 +35,7 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
  assert.equal(w.document.querySelectorAll('#matrix circle').length,31);
  assert.equal($('fontEditor'),null,'text and glyph editor are fully removed');
  assert.equal(w.document.querySelectorAll('script[src*="font-editor"]').length,0);
- assert.match(w.document.querySelector('link[rel="stylesheet"]').getAttribute('href'),/v=1\.5\.0/);
+ assert.match(w.document.querySelector('link[rel="stylesheet"]').getAttribute('href'),/v=1\.5\.1/);
  assert.equal($('controls').nextElementSibling.id,'batteryControls','battery follows device settings directly');
  assert.equal($('batteryControls').disabled,true,'battery controls remain disabled until connection');
  assert.equal($('modePanel').nextElementSibling.id,'quickSettings','always-visible quick controls follow the mode panel');
@@ -71,17 +71,16 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
  assert.equal(await run(`proof('${expected}','abc123')`),crypto.createHmac('sha256',Buffer.from(expected,'hex')).update('abc123').digest('hex'));
  await run('connect()');assert(!$('login').hidden);
  $('password').value=pass;$('authForm').requestSubmit($('authForm').querySelector('button'));
- await until(()=>run('ready'));await until(()=>run('customLoaded'));assert.equal(server.key,expected);assert(server.configured);assert(!$('controls').disabled);assert(!$('batteryControls').disabled);assert.match($('firmwareVersionInfo').textContent,/доступно обновление до 1\.4\.0/);assert(!$('otaUpdate').disabled);
+ await until(()=>run('ready'));await until(()=>run('customLoaded'));assert.equal(server.key,expected);assert(server.configured);assert(!$('controls').disabled);assert(!$('batteryControls').disabled);assert.match($('firmwareVersionInfo').textContent,/доступно обновление до 1\.4\.1/);assert(!$('otaUpdate').disabled);
  await run("setting('mode',5)");assert.equal(server.settings.mode,5);await run("setting('primaryMask',1<<10)");assert.equal(server.settings.primaryMask,1<<10);
  $('setting-voiceFocus').value='1';$('setting-voiceFocus').dispatchEvent(new w.Event('change'));await until(()=>server.settings.voiceFocus===1);
  $('setting-micSensitivity').value='5';$('setting-micSensitivity').dispatchEvent(new w.Event('change'));await until(()=>server.settings.micSensitivity===5);
- $('setting-mouthSensitivity').value='4';$('setting-mouthSensitivity').dispatchEvent(new w.Event('change'));await until(()=>server.settings.mouthSensitivity===4);
+ assert.equal($('setting-mouthSensitivity'),null,'mouth sensitivity remains controlled by the shared microphone settings');
  $('modeLock').click();await until(()=>server.settings.modeLocked===true);assert.match($('modeLockStatus').textContent,/три раза/);
  await run("setting('mode',6)");assert.equal(server.settings.mode,6,'phone can choose a mode while hardware mode switching is locked');
- $('micPresetSelect').value='0';$('micPresetSelect').dispatchEvent(new w.Event('change'));$('micPresetName').value='Концерт';$('micPresetSave').click();await until(()=>server.presets[0].name==='Концерт');assert.equal(server.presets[0].values.micSensitivity,5);assert.equal(server.presets[0].values.mouthSensitivity,4);assert.equal(run('cfg.activeMicPreset'),0);
+ $('micPresetSelect').value='0';$('micPresetSelect').dispatchEvent(new w.Event('change'));$('micPresetName').value='Концерт';$('micPresetSave').click();await until(()=>server.presets[0].name==='Концерт');assert.equal(server.presets[0].values.micSensitivity,5);assert.equal(Object.hasOwn(server.presets[0].values,'mouthSensitivity'),false);assert.equal(run('cfg.activeMicPreset'),0);
  $('setting-micSensitivity').value='1';$('setting-micSensitivity').dispatchEvent(new w.Event('change'));await until(()=>server.settings.micSensitivity===1);
- $('setting-mouthSensitivity').value='1';$('setting-mouthSensitivity').dispatchEvent(new w.Event('change'));await until(()=>server.settings.mouthSensitivity===1);
- $('micPresetSelect').value='0';$('micPresetSelect').dispatchEvent(new w.Event('change'));await until(()=>server.settings.micSensitivity===5);assert.equal(run('cfg.micSensitivity'),5);assert.equal(run('cfg.mouthSensitivity'),4);
+ $('micPresetSelect').value='0';$('micPresetSelect').dispatchEvent(new w.Event('change'));await until(()=>server.settings.micSensitivity===5);assert.equal(run('cfg.micSensitivity'),5);
  $('save').click();await until(()=>server.saved);
  // Read/write fragmentation and reconnect with remembered access, no second password entry.
  assert(fragments>10);device.gatt.disconnect();assert($('controls').disabled);assert($('batteryControls').disabled);
@@ -89,5 +88,5 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
  run(`incoming({target:{value:new DataView(new TextEncoder().encode(JSON.stringify({type:'state',mode:10,lastMode:10,primaryMask:1024,pct:42,v:3.71,batteryValid:true,level:.5,bass:.2,db:-25,clip:true,mic:true,roar:2,pixels:'00ff00'.repeat(31)})+'\\n').buffer)}})`);
  assert.equal($('battery').textContent,'42% · 3.71 В');assert.equal($('mic').textContent,'Перегруз микрофона');
  assert.equal($('led-15').getAttribute('fill'),'#00ff00');assert.equal($('modeName').textContent,'Сейчас: Светомузыка');assert.equal(w.document.querySelectorAll('#primaryModes input:checked').length,1);
- assert.deepEqual(errors,[]);dom.window.close();console.log('PASS: UI removes glyph/text editor; independent mouth sensitivity and saved mic presets; mode lock, BLE auth/fragmentation, settings, reconnect, battery and clipping telemetry');
+ assert.deepEqual(errors,[]);dom.window.close();console.log('PASS: glyph editor removed, shared mic sensitivity and presets, mode lock, BLE auth/fragmentation, settings, reconnect, battery and clipping telemetry');
 })().catch(e=>{console.error(e);dom.window.close();process.exit(1)});
