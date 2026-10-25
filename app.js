@@ -2,10 +2,10 @@
 const SERVICE='97bcf501-696e-4f24-9b83-16bfa764b7e1',RX='97bcf502-696e-4f24-9b83-16bfa764b7e1',TX='97bcf503-696e-4f24-9b83-16bfa764b7e1',OTA='97bcf504-696e-4f24-9b83-16bfa764b7e1';
 const $=id=>document.getElementById(id),enc=new TextEncoder();let dec=new TextDecoder();
 const names=['Рот','Полосы ↕','Эквалайзер','Волна','Басы','Смыкание','Цвет','Дыхание','Басовый импульс','Пламя','Светомузыка','Своя 1','Своя 2','Своя 3'];
-let targetFirmwareVersion='1.4.0';
+let targetFirmwareVersion='1.4.1';
 const firmwareInfo=document.createElement('p');firmwareInfo.id='firmwareVersionInfo';firmwareInfo.className='note';$('otaUpdate').before(firmwareInfo);
-let cfg={mode:0,lastMode:0,modeLocked:false,activeMicPreset:-1,primaryMask:2015,customFps:4,customCount:4,customSound:0,fireLow:0xff1800,fireHigh:0xffdc40,fireIntensity:.8,fireCooling:.15,musicLow:0xff1800,musicMid:0x00ff50,musicHigh:0x2060ff,musicGain:1.5,brightness:90,currentLimitMa:900,base:0x00ff18,loud:0xff0000,heart:0xff1680,floorDb:-65,ceilingDb:-18,loudLevel:.82,bassLow:40,bassHigh:180,bassGain:2,roarLow:100,roarHigh:1800,roarDb:-14,roarBandRatio:.35,roarTriggerMs:200,roarHoldMs:15000,roarCloseMs:350,roarOpenMs:1800,changeStableMs:1000,changeDb:7,changeSpectrum:.2,attackMs:45,releaseMs:180,speed:1,batteryCorrection:1,micSensitivity:1,mouthSensitivity:2,voiceFocus:0};
-const micPresetFields=['micSensitivity','mouthSensitivity','voiceFocus','floorDb','ceilingDb','loudLevel','attackMs','releaseMs'];let micPresets=Array.from({length:4},()=>({name:'',values:{}}));
+let cfg={mode:0,lastMode:0,modeLocked:false,activeMicPreset:-1,primaryMask:2015,customFps:4,customCount:4,customSound:0,fireLow:0xff1800,fireHigh:0xffdc40,fireIntensity:.8,fireCooling:.15,musicLow:0xff1800,musicMid:0x00ff50,musicHigh:0x2060ff,musicGain:1.5,brightness:90,currentLimitMa:900,base:0x00ff18,loud:0xff0000,heart:0xff1680,floorDb:-65,ceilingDb:-18,loudLevel:.82,bassLow:40,bassHigh:180,bassGain:2,roarLow:100,roarHigh:1800,roarDb:-14,roarBandRatio:.35,roarTriggerMs:200,roarHoldMs:15000,roarCloseMs:350,roarOpenMs:1800,changeStableMs:1000,changeDb:7,changeSpectrum:.2,attackMs:45,releaseMs:180,speed:1,batteryCorrection:1,micSensitivity:1,voiceFocus:0};
+const micPresetFields=['micSensitivity','voiceFocus','floorDb','ceilingDb','loudLevel','attackMs','releaseMs'];let micPresets=Array.from({length:4},()=>({name:'',values:{}}));
 let device,rx,tx,otaChar,hello,ready=false,demo=false,buffer='',serial=1,queue=Promise.resolve(),dirty=false,heartUntil=0,demoRoarAt=-1,demoFrame=0;
 let customPixels=Array(31).fill(0),customLoaded=false,latestBatteryVoltage=NaN;
 let capacityMa=storageGet('greenbandana-capacity-mah');if(!Number.isInteger(capacityMa)||capacityMa<100||capacityMa>30000)capacityMa=2500;
@@ -187,11 +187,6 @@ function buildControls(){
  for(const [value,label] of [[0,'Выключен'],[1,'Включён · эвристика']]){const option=document.createElement('option');option.value=value;option.textContent=label;focusSelect.append(option);}
  focusSelect.value=cfg.voiceFocus;focusOut.value=focusSelect.options[focusSelect.selectedIndex].text;focus.append(focusOut,focusSelect);
  focusSelect.onchange=async()=>{if(await setting('voiceFocus',+focusSelect.value))focusOut.value=focusSelect.options[focusSelect.selectedIndex].text;else focusSelect.value=cfg.voiceFocus;};$('audio').prepend(focus);
- const mouth=document.createElement('label');mouth.className='setting';mouth.textContent='Чувствительность режима «Рот»';
- const mouthOut=document.createElement('output'),mouthSelect=document.createElement('select');mouthSelect.id='setting-mouthSensitivity';
- for(const [value,label] of [[1,'×1 · без снижения'],[2,'×½'],[3,'×⅓'],[4,'×¼'],[5,'×⅕']]){const option=document.createElement('option');option.value=value;option.textContent=label;mouthSelect.append(option);}
- mouthSelect.value=cfg.mouthSensitivity;mouthOut.value=mouthSelect.options[mouthSelect.selectedIndex].text;mouth.append(mouthOut,mouthSelect);
- mouthSelect.onchange=async()=>{if(await setting('mouthSensitivity',+mouthSelect.value))mouthOut.value=mouthSelect.options[mouthSelect.selectedIndex].text;else mouthSelect.value=cfg.mouthSensitivity;};focus.after(mouth);
  const sens=document.createElement('label');sens.className='setting';sens.textContent='Общая чувствительность';
  const sensOut=document.createElement('output'),sensSelect=document.createElement('select');sensSelect.id='setting-micSensitivity';
  for(const [value,label] of [[1,'×1 · без снижения'],[2,'×½'],[3,'×⅓'],[4,'×¼'],[5,'×⅕']]){const option=document.createElement('option');option.value=value;option.textContent=label;sensSelect.append(option);}
@@ -241,7 +236,7 @@ function refreshMicPresetSelect(){
  $('micPresetName').value=select.value==='-1'?'':micPresets[+select.value]?.name||'';
 }
 function syncMicControls(){
- for(const name of micPresetFields){const input=$('setting-'+name);if(input){input.value=cfg[name];const output=input.closest('label')?.querySelector('output');if(output){const unit={floorDb:' dBFS',ceilingDb:' dBFS',attackMs:' мс',releaseMs:' мс'}[name]||'';output.value=name==='micSensitivity'||name==='mouthSensitivity'?['','×1 · без снижения','×½','×⅓','×¼','×⅕'][cfg[name]]:name==='voiceFocus'?(cfg[name]?'Включён · эвристика':'Выключен'):cfg[name]+unit;}}}
+ for(const name of micPresetFields){const input=$('setting-'+name);if(input){input.value=cfg[name];const output=input.closest('label')?.querySelector('output');if(output){const unit={floorDb:' dBFS',ceilingDb:' dBFS',attackMs:' мс',releaseMs:' мс'}[name]||'';output.value=name==='micSensitivity'?['','×1 · без снижения','×½','×⅓','×¼','×⅕'][cfg[name]]:name==='voiceFocus'?(cfg[name]?'Включён · эвристика':'Выключен'):cfg[name]+unit;}}}
 }
 async function applyMicPreset(slot){
  const preset=micPresets[slot];if(!preset?.name){$('micPresetStatus').textContent='Сначала сохрани настройки в этот слот.';return;}
