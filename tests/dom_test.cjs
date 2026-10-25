@@ -35,7 +35,7 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
  assert.equal(w.document.querySelectorAll('#matrix circle').length,31);
  assert.equal($('fontEditor'),null,'text and glyph editor are fully removed');
  assert.equal(w.document.querySelectorAll('script[src*="font-editor"]').length,0);
- assert.match(w.document.querySelector('link[rel="stylesheet"]').getAttribute('href'),/v=1\.5\.1/);
+ assert.match(w.document.querySelector('link[rel="stylesheet"]').getAttribute('href'),/v=1\.5\.2/);
  assert.equal($('controls').nextElementSibling.id,'batteryControls','battery follows device settings directly');
  assert.equal($('batteryControls').disabled,true,'battery controls remain disabled until connection');
  assert.equal($('modePanel').nextElementSibling.id,'quickSettings','always-visible quick controls follow the mode panel');
@@ -49,9 +49,9 @@ async function until(predicate){for(let i=0;i<300;i++){if(predicate())return;awa
  assert.equal($('firmwareSection').open,false,'firmware update is a collapsed settings item');
  assert.equal($('quickSettings').querySelector('#setting-brightness')!==null,true);
  assert.equal($('quickSettings').querySelector('#setting-speed')!==null,true);
- assert.equal($('quickSettings').querySelector('#setting-micSensitivity')!==null,true);
+ assert.equal($('quickSettings').querySelectorAll('#setting-micSensitivity').length,1,'only one shared microphone sensitivity control is rendered');
  assert.equal(w.document.querySelectorAll('#fontMatrix, #fontCharInput, #fontEditor').length,0,'text editing features are fully removed');
- $('demo').click();assert(!$('controls').disabled);assert(!$('batteryControls').disabled);
+ $('demo').click();assert(!$('controls').disabled);assert(!$('batteryControls').disabled);assert.equal($('quickSettings').querySelectorAll('#setting-micSensitivity').length,1,'rebuilding controls does not duplicate mic sensitivity');
  for(let i=0;i<11;i++){await run(`setting('mode',${i})`);assert.equal(run('cfg.mode'),i);}
  // Choose a two-mode primary cycle in the phone panel and test both hardware-equivalent controls.
  await run("setting('primaryMask',(1<<9)|(1<<10))");
