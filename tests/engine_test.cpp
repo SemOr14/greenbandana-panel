@@ -45,8 +45,7 @@ void audioTests(){
 }
 void matrixAndPowerTests(){
  assert(std::abs(mouthRedBoost(0,{255,0,0})-1.f)<.001f&&std::abs(mouthRedBoost(.5f,{255,0,0})-1.06f)<.001f&&std::abs(mouthRedBoost(1,{255,0,0})-1.12f)<.001f&&std::abs(mouthRedBoost(1,{0,0,255})-1.f)<.001f);
- float raw=.8f;float half=reduceMouthSensitivity(raw,2,-65,-18),fifth=reduceMouthSensitivity(raw,5,-65,-18);
- assert(std::abs(reduceMouthSensitivity(raw,1,-65,-18)-raw)<.001f&&half<raw&&fifth<half&&half>0&&fifth<.6f);
+ assert(std::abs(bassModeResponse(0.f))<.001f&&std::abs(bassModeResponse(.8f)-.4f)<.001f&&std::abs(bassModeResponse(1.f)-.5f)<.001f);
  std::set<int> ids;for(int r=0;r<5;r++)for(int x=0;x<13;x++)if(BandanaMatrix::indexAt(x,r)>=0)ids.insert(BandanaMatrix::indexAt(x,r));assert(ids.size()==31&&*ids.begin()==0&&*ids.rbegin()==30);
  Config c;Renderer renderer;Collapse roar;Audio a=loud();a.level=.8;a.bass=.8;
  for(int mode=0;mode<MODES;mode++)for(bool heart:{false,true}){c.mode=mode;c.brightness=255;c.base=0xffffff;c.loud=0xffffff;c.currentLimitMa=500;
@@ -82,4 +81,4 @@ void newEffectTests(){
  a.display={};for(int b=5;b<8;b++)a.display[b]=1;
  auto high=music.render(1060,c,a,r,false);assert(high[0].b>high[25].b);for(auto p:high)assert(p.r==0&&p.g==0);
 }
-int main(){collapseTests();audioTests();matrixAndPowerTests();modeControlTests();newEffectTests();std::cout<<"PASS: collapse timing, hysteresis, both changes, wraparound, FFT, clipping, matrix, current limit, mouth-only sensitivity, selected mode cycle, collapse return, fire and frequency-color music\n";}
+int main(){collapseTests();audioTests();matrixAndPowerTests();modeControlTests();newEffectTests();std::cout<<"PASS: collapse timing, hysteresis, both changes, wraparound, FFT, clipping, matrix, current limit, shared mic sensitivity, bass mode headroom, selected mode cycle, collapse return, fire and frequency-color music\n";}
