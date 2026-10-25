@@ -158,6 +158,7 @@ const sections={
  customSettings:[['customFps','Кадров в секунду',1,20,1,''],['customCount','Число кадров',1,8,1,''],['customSound','Реакция: 0 нет, 1 громкость, 2 басы',0,2,1,'']]
 };
 function buildControls(){
+ $('quickMicSensitivity').replaceChildren();
  for(const [parent,fields]of Object.entries(sections)){
   $(parent).replaceChildren();
   for(const [name,label,min,max,step,unit]of fields){
