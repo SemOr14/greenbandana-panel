@@ -9,7 +9,7 @@
 #include <mbedtls/md.h>
 #include "engine.h"
 using namespace Mask;
-constexpr char FW_VERSION[]="1.3.0";
+constexpr char FW_VERSION[]="1.4.0";
 constexpr int PIN_BAT=1,PIN_BCLK=4,PIN_WS=5,PIN_SD=6,PIN_LED=7,PIN_NEXT=8,PIN_PREV=9;
 constexpr char SERVICE[]="97bcf501-696e-4f24-9b83-16bfa764b7e1";
 constexpr char RX_UUID[]="97bcf502-696e-4f24-9b83-16bfa764b7e1";
@@ -47,7 +47,7 @@ void configJson(JsonObject o){
 #define CFG_FIELD(n) o[#n]=cfg.n
  CFG_FIELD(primaryMask);CFG_FIELD(lastMode);CFG_FIELD(fireLow);CFG_FIELD(fireHigh);CFG_FIELD(fireIntensity);CFG_FIELD(fireCooling);CFG_FIELD(musicLow);CFG_FIELD(musicMid);CFG_FIELD(musicHigh);CFG_FIELD(musicGain);
  CFG_FIELD(mode);CFG_FIELD(brightness);CFG_FIELD(currentLimitMa);CFG_FIELD(base);CFG_FIELD(loud);CFG_FIELD(heart);CFG_FIELD(floorDb);CFG_FIELD(ceilingDb);CFG_FIELD(loudLevel);
- CFG_FIELD(micSensitivity);CFG_FIELD(voiceFocus);
+ CFG_FIELD(micSensitivity);CFG_FIELD(voiceFocus);CFG_FIELD(mouthSensitivity);
  CFG_FIELD(customFps);CFG_FIELD(customCount);CFG_FIELD(customSound);
  CFG_FIELD(bassLow);CFG_FIELD(bassHigh);CFG_FIELD(bassGain);CFG_FIELD(roarLow);CFG_FIELD(roarHigh);CFG_FIELD(roarDb);CFG_FIELD(roarBandRatio);CFG_FIELD(roarTriggerMs);CFG_FIELD(roarHoldMs);CFG_FIELD(roarCloseMs);CFG_FIELD(roarOpenMs);CFG_FIELD(changeStableMs);CFG_FIELD(changeDb);CFG_FIELD(changeSpectrum);CFG_FIELD(attackMs);CFG_FIELD(releaseMs);CFG_FIELD(speed);CFG_FIELD(batteryCorrection);
 #undef CFG_FIELD
@@ -64,7 +64,7 @@ bool setField(const String& name,JsonVariantConst value){
  CFG_FIELD(fireIntensity,.1,1);CFG_FIELD(fireCooling,.02,.5);CFG_FIELD(musicGain,.2,4);I(brightness,0,255);I(currentLimitMa,100,1800);
  I(base,0,16777215);I(loud,0,16777215);I(heart,0,16777215);
  I(customFps,1,20);I(customCount,1,8);I(customSound,0,2);
- I(micSensitivity,1,5);I(voiceFocus,0,1);
+ I(micSensitivity,1,5);I(voiceFocus,0,1);I(mouthSensitivity,1,5);
  CFG_FIELD(floorDb,-100,-25);CFG_FIELD(ceilingDb,-24,-1);CFG_FIELD(loudLevel,.1,.99);
  I(bassLow,32,150);I(bassHigh,160,500);CFG_FIELD(bassGain,.1,6);
  I(roarLow,32,1500);I(roarHigh,1600,7000);CFG_FIELD(roarDb,-80,-1);CFG_FIELD(roarBandRatio,.01,.99);
@@ -145,21 +145,21 @@ void handleCommand(const char* text){
  }
  if(op=="micPresetGet"){
   DynamicJsonDocument r(1536);r["id"]=id;r["type"]="micPresets";auto list=r.createNestedArray("presets");
-  for(int slot=0;slot<4;slot++){JsonObject p=list.createNestedObject();String raw=prefs.getString((String("mic")+slot).c_str(),"");if(raw.length()){DynamicJsonDocument saved(512);if(!deserializeJson(saved,raw)){p["name"]=saved["name"]|"";p["values"]=saved["values"];continue;}}p["name"]="";p.createNestedObject("values");}
+  for(int slot=0;slot<4;slot++){JsonObject p=list.createNestedObject();String raw=prefs.getString((String("mic")+slot).c_str(),"");JsonObject values=p.createNestedObject("values");if(raw.length()){DynamicJsonDocument saved(512);if(!deserializeJson(saved,raw)){p["name"]=saved["name"]|"";JsonObjectConst oldValues=saved["values"].as<JsonObjectConst>();for(JsonPairConst pair:oldValues)values[pair.key()]=pair.value();if(!oldValues.containsKey("mouthSensitivity"))values["mouthSensitivity"]=2;continue;}}p["name"]="";values["mouthSensitivity"]=2;}
   r["active"]=activeMicPreset;emit(r);return;
  }
  if(op=="micPresetSave"){
   int slot=d["slot"]|-1;String name=d["name"]|"";JsonObjectConst values=d["values"].as<JsonObjectConst>();
   if(slot<0||slot>=4||name.length()==0||name.length()>64||values.isNull()){reply(id,false,"invalid_preset");return;}
-  Config original=cfg;const char* fields[]={"micSensitivity","voiceFocus","floorDb","ceilingDb","loudLevel","attackMs","releaseMs"};
+  Config original=cfg;const char* fields[]={"micSensitivity","voiceFocus","mouthSensitivity","floorDb","ceilingDb","loudLevel","attackMs","releaseMs"};
   for(const char* field:fields){if(!values.containsKey(field)||!setField(field,values[field])){cfg=original;reply(id,false,"invalid_preset");return;}}
-  bool valid=cfg.floorDb<cfg.ceilingDb;DynamicJsonDocument saved(512);saved["name"]=name;JsonObject v=saved.createNestedObject("values");for(const char* field:fields){if(strcmp(field,"micSensitivity")==0)v[field]=cfg.micSensitivity;else if(strcmp(field,"voiceFocus")==0)v[field]=cfg.voiceFocus;else if(strcmp(field,"floorDb")==0)v[field]=cfg.floorDb;else if(strcmp(field,"ceilingDb")==0)v[field]=cfg.ceilingDb;else if(strcmp(field,"loudLevel")==0)v[field]=cfg.loudLevel;else if(strcmp(field,"attackMs")==0)v[field]=cfg.attackMs;else v[field]=cfg.releaseMs;}
+  bool valid=cfg.floorDb<cfg.ceilingDb;DynamicJsonDocument saved(512);saved["name"]=name;JsonObject v=saved.createNestedObject("values");for(const char* field:fields){if(strcmp(field,"micSensitivity")==0)v[field]=cfg.micSensitivity;else if(strcmp(field,"voiceFocus")==0)v[field]=cfg.voiceFocus;else if(strcmp(field,"mouthSensitivity")==0)v[field]=cfg.mouthSensitivity;else if(strcmp(field,"floorDb")==0)v[field]=cfg.floorDb;else if(strcmp(field,"ceilingDb")==0)v[field]=cfg.ceilingDb;else if(strcmp(field,"loudLevel")==0)v[field]=cfg.loudLevel;else if(strcmp(field,"attackMs")==0)v[field]=cfg.attackMs;else v[field]=cfg.releaseMs;}
   cfg=original;if(!valid){reply(id,false,"invalid_preset");return;}String raw;serializeJson(saved,raw);if(prefs.putString((String("mic")+slot).c_str(),raw)==0){reply(id,false,"storage_failed");return;}activeMicPreset=slot;prefs.putInt("micActive",slot);saveConfig();reply(id,true);return;
  }
  if(op=="micPresetApply"){
   int slot=d["slot"]|-1;if(slot<0||slot>=4){reply(id,false,"invalid_preset");return;}String raw=prefs.getString((String("mic")+slot).c_str(),"");DynamicJsonDocument saved(512);
-  if(!raw.length()||deserializeJson(saved,raw)){reply(id,false,"empty_preset");return;}Config original=cfg;JsonObjectConst values=saved["values"].as<JsonObjectConst>();const char* fields[]={"micSensitivity","voiceFocus","floorDb","ceilingDb","loudLevel","attackMs","releaseMs"};
-  for(const char* field:fields)if(!values.containsKey(field)||!setField(field,values[field])){cfg=original;reply(id,false,"invalid_preset");return;}
+  if(!raw.length()||deserializeJson(saved,raw)){reply(id,false,"empty_preset");return;}Config original=cfg;JsonObjectConst values=saved["values"].as<JsonObjectConst>();const char* fields[]={"micSensitivity","voiceFocus","mouthSensitivity","floorDb","ceilingDb","loudLevel","attackMs","releaseMs"};
+  for(const char* field:fields){if(!values.containsKey(field)&&strcmp(field,"mouthSensitivity")==0){cfg.mouthSensitivity=2;continue;}if(!values.containsKey(field)||!setField(field,values[field])){cfg=original;reply(id,false,"invalid_preset");return;}}
   if(cfg.floorDb>=cfg.ceilingDb){cfg=original;reply(id,false,"invalid_preset");return;}activeMicPreset=slot;prefs.putInt("micActive",slot);saveConfig();reply(id,true);return;
  }
  if(op=="otaBegin"){
