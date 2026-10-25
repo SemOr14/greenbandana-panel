@@ -16,9 +16,10 @@ inline Color color(uint32_t v){return {uint8_t(v>>16),uint8_t(v>>8),uint8_t(v)};
 inline Color blend(Color a,Color b,float t){return {uint8_t(mix(a.r,b.r,t)),uint8_t(mix(a.g,b.g,t)),uint8_t(mix(a.b,b.b,t))};}
 inline Color scale(Color a,float f){f=bound(f);return {uint8_t(a.r*f),uint8_t(a.g*f),uint8_t(a.b*f)};}
 inline float mouthRedBoost(float loudMix,Color loud){return 1.f+((loud.r>loud.g&&loud.r>loud.b)?.12f*bound(loudMix):0.f);}
+inline float reduceMouthSensitivity(float level,int divisor,float floorDb,float ceilingDb){float span=std::max(.1f,ceilingDb-floorDb),attenuation=20.f*std::log10(float(std::max(1,divisor)));return bound(level-attenuation/span);}
 struct Config {
  int mode=0,lastMode=0,brightness=90,currentLimitMa=900;
- int micSensitivity=1,voiceFocus=0;
+ int micSensitivity=1,voiceFocus=0,mouthSensitivity=2;
  uint32_t primaryMask=((1u<<11)-1)&~(1u<<5);
  int customFps=4,customCount=4,customSound=0;
  uint32_t fireLow=0xff1800,fireHigh=0xffdc40,musicLow=0xff1800,musicMid=0x00ff50,musicHigh=0x2060ff;
@@ -165,6 +166,8 @@ class Renderer {
   std::array<Color,LEDS> out{};float dt=last?uint32_t(now-last)/1000.f:.032f;last=now;
   if(a.bass-previousBass>.08f&&a.bass>.3f&&pulse>.25f)pulse=0;previousBass=a.bass;pulse+=dt*c.speed;
   Color base=color(c.base),loud=color(c.loud);float loudMix=bound((a.level-c.loudLevel)/std::max(.01f,1-c.loudLevel));
+  float mouthLevel=reduceMouthSensitivity(a.level,c.mouthSensitivity,c.floorDb,c.ceilingDb);
+  float mouthLoudMix=bound((mouthLevel-c.loudLevel)/std::max(.01f,1-c.loudLevel));Color mouthSpeech=blend(base,loud,mouthLoudMix);
   Color speech=blend(base,loud,loudMix);float t=now*.001f*c.speed;
   for(int i=0;i<LEDS;i++){
    auto p=BandanaMatrix::kPosition[i];float x=p.x_mm/49.5f,y=p.y_mm/29.6f,ax=std::abs(x),ay=std::abs(y),v=0;Color co=base;
@@ -177,10 +180,10 @@ class Renderer {
     case 0:{ // Speech mouth: envelope controls opening, spectral balance controls width.
      float hi=a.spectrum[4]+a.spectrum[5]+a.spectrum[6],lo=a.spectrum[1]+a.spectrum[2]+a.spectrum[3];
      float width=mix(.85f,.48f,bound(hi/(hi+lo+1e-6f)));
-     float height=mix(.06f,1.f,a.level);
+     float height=mix(.06f,1.f,mouthLevel);
      float ellipse=std::sqrt((x/width)*(x/width)+(y/height)*(y/height));
-     v=1-bound(std::abs(ellipse-1)/.65f);if(a.level<.12f)v=(1-bound(ay*3))*bound(1-ax);
-     co=speech;break;}
+     v=1-bound(std::abs(ellipse-1)/.65f);if(mouthLevel<.12f)v=(1-bound(ay*3))*bound(1-ax);
+     co=mouthSpeech;break;}
     case 1:{float gap=.12f+a.level*.88f;v=1-bound(std::abs(ay-gap)/.50f);co=speech;break;}
     case 2:{int band=std::min(7,std::max(0,int((x+1)*4)));float h=a.display[band]*2;
      v=bound((h-(1-y))/.45f+.5f);co=blend(base,loud,(1-y)/2);break;}
@@ -211,7 +214,7 @@ class Renderer {
      v=c.customSound==1?(.15f+.85f*a.level):c.customSound==2?(.15f+.85f*a.bass):1.f;break;
     }
    }
-   float mouthBoost=c.mode==0?mouthRedBoost(loudMix,loud):1.f;
+   float mouthBoost=c.mode==0?mouthRedBoost(mouthLoudMix,loud):1.f;
    out[i]=scale(co,v*c.brightness/255.f*mouthBoost);
   }
   // Conservative LED-only current estimate (not a current sensor).
